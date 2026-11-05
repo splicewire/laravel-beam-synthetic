@@ -26,4 +26,17 @@ return [
         DemoBlueprints::portfolios(),
     ],
 
+    // The host's own materialization steps, `name => class` (each a MaterializesSyntheticExtras), read into
+    // SyntheticExtrasRegistry (`beam.synthetic.materializers`). They run in this order, after the generic writes.
+    'materializers' => [],
+
+    // How many metered units a dollar of synthetic usage stands for, when the host declares no unit cost for the
+    // meter (MeterRegistry). The default is the flagship's ratio for `openai.tokens`.
+    'usage_units_per_usd' => 1000,
+
+    // Whether the materializer provisions a synthetic tenant's storage itself (stancl's CreateDatabase, then a
+    // tenants:migrate scoped to that tenant). It does so only where the host declares no provisioning pipeline; a
+    // host that does owns its tenants' storage.
+    'provision_storage' => true,
+
 ];

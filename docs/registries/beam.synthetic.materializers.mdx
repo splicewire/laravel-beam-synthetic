@@ -1,0 +1,118 @@
+---
+title: Synthetic materializer extras
+segment: beam.synthetic.materializers
+nav_order: 100
+excerpt: A host's own steps, run while a synthetic tenant is materialized.
+---
+
+# Synthetic materializer extras
+
+`beam.synthetic.materializers` holds a host's own **extras**: the steps it runs while a synthetic
+tenant is materialized. The generic materializer writes only what every Beam host shares: the tenant
+itself, flagged synthetic, its plan subscription, seats that follow the blueprint's seat curve,
+metered usage that follows its usage curve, and, on request, the closed periods' bills. Anything
+only your product knows how to tell, such as the records a customer in your vertical would have
+inside their workspace, is an extra.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration; regenerate it, do not edit between these markers. */}
+
+- **Root:** `beam.synthetic.materializers`
+- **Entries:** `class-string<Splicewire\Beam\Synthetic\Extras\MaterializesSyntheticExtras>`
+- **Duplicate keys:** Reject — registering a taken key throws
+- **Population:** Optional — an empty registry is normal
+- **Order:** `100` (display order, ascending)
+- **Declared by:** `Splicewire\Beam\Synthetic\Extras\SyntheticExtrasRegistry`
+
+{/* registry-facts:end */}
+
+<RegistryRegistrants root="beam.synthetic.materializers" />
+
+## Who fills it
+
+This package registers no extras, so the registry is empty until a host fills it. Name each extra
+in `config('beam.synthetic.materializers')`, as `name => class`:
+
+```php
+// config/beam/synthetic.php
+'materializers' => [
+    'merchant-records' => \App\Synthetic\MerchantRecordsExtra::class,
+],
+```
+
+or register one from your own service provider:
+
+```php
+use Splicewire\Beam\Synthetic\Extras\SyntheticExtrasRegistry;
+
+app(SyntheticExtrasRegistry::class)->register('merchant-records', MerchantRecordsExtra::class);
+```
+
+Each entry is a class-string, resolved from the container when the materializer runs, so an extra
+can take its own dependencies in its constructor. Registering anything that is not a
+`MaterializesSyntheticExtras` class is refused, naming the entry.
+
+## Writing an extra
+
+An extra implements four methods:
+
+```php
+use Splicewire\Beam\Synthetic\Data\SyntheticTenantBlueprintData;
+use Splicewire\Beam\Synthetic\Extras\MaterializesSyntheticExtras;
+use Splicewire\Beam\Synthetic\Extras\SyntheticPlane;
+use Splicewire\Beam\Synthetic\Extras\SyntheticTenantContext;
+use Splicewire\Beam\Tenancy\Tenant;
+
+final class MerchantRecordsExtra implements MaterializesSyntheticExtras
+{
+    public function plane(): SyntheticPlane
+    {
+        return SyntheticPlane::Tenant;
+    }
+
+    public function appliesTo(SyntheticTenantBlueprintData $blueprint): bool
+    {
+        return $blueprint->scaffoldPackSlug === 'merchant';
+    }
+
+    public function beforeProvisioning(Tenant $tenant, SyntheticTenantBlueprintData $blueprint): void
+    {
+        $tenant->scaffold_pack_slugs = [$blueprint->scaffoldPackSlug];
+    }
+
+    public function materialize(SyntheticTenantContext $context): void
+    {
+        // Runs inside the tenant: write its records here, idempotently.
+    }
+}
+```
+
+For each tenant, the materializer asks every extra whether it `appliesTo()` the tenant's blueprint.
+Then:
+
+1. **`beforeProvisioning()`** runs on the tenant before the save that fires your provisioning
+   pipeline, so an extra can set attributes the pipeline reads. Don't save the tenant here; the
+   materializer does.
+2. The materializer saves the tenant and writes its subscription, seats, usage and bills.
+3. **`materialize()`** runs with a `SyntheticTenantContext`: the tenant, its blueprint and roster
+   member, the months it was materialized over, its curve and its subscription. A
+   `SyntheticPlane::Central` extra runs as the materializer does. A `SyntheticPlane::Tenant` extra
+   runs inside `$tenant->run()`, against the tenant's own storage. If that storage isn't ready yet,
+   because your provisioning pipeline is queued and hasn't run, the materializer stops and names the
+   tenant and the extra rather than writing half a story.
+
+Extras run in registration order, config first. Both calls run on every materialize, including a
+re-run, so each must be idempotent: find what you wrote last time and rewrite it.
+
+The [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies) is **reject**: two
+extras under one name would leave it ambiguous which one ran, and an extra writes real rows.
+
+## Going deeper
+
+The source is
+[`SyntheticExtrasRegistry`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Extras/SyntheticExtrasRegistry.php),
+the contract is
+[`MaterializesSyntheticExtras`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Extras/MaterializesSyntheticExtras.php),
+and the materializer that runs it is
+[`SyntheticTenantMaterializer`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Materialize/SyntheticTenantMaterializer.php).
+The blueprints it reads are in [`beam.synthetic.blueprints`](beam.synthetic.blueprints), and the
+portfolios in [`beam.synthetic.portfolios`](beam.synthetic.portfolios).

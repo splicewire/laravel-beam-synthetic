@@ -19,11 +19,19 @@ without inventing a second pricing or revenue path. Beam tier, MIT.
 - `Blueprints\`: `BlueprintRegistry` (`beam.synthetic.blueprints`) and `PortfolioRegistry`
   (`beam.synthetic.portfolios`), filled from `beam.synthetic.blueprint_paths` /
   `portfolio_paths` by a `DirectoryRegistrar`, and the Demo set under `resources/synthetic/demo/`.
+- `Roster\`: `SyntheticRoster` (who a run is about: one blueprint as one tenant, or a portfolio as
+  `{blueprint}-{k}` copies at their offsets; history months back from now, forward months from an
+  anchor, deliberately two methods) and the pure `ScenarioProjector`.
+- `Materialize\SyntheticTenantMaterializer`: writes a roster's history as synthetic tenants (tenant,
+  plan subscription, seats per the seat curve, usage on the blueprint's meter, optional bills). It
+  checks ids, plan slugs and id conflicts before any write.
+- `Extras\`: `MaterializesSyntheticExtras`, `SyntheticPlane`, `SyntheticTenantContext` and
+  `SyntheticExtrasRegistry` (`beam.synthetic.materializers`), the host hook.
+- `Console\`: `synthetic:materialize`, `synthetic:project` (zero queries) and
+  `synthetic:capture-curves` (the golden fixture's regeneration command).
 
 Still to land, in the exec-board build order (the plan is the exec-board map in the ecosystem
-scratch tracker): the generic materializer, a host-extras registry, the `materialize`, `project` and
-`capture-curves` commands, and the pure financial-projection engine with its baseline loader kept
-separate.
+scratch tracker): the pure financial-projection engine with its baseline loader kept separate.
 
 What stays in the host: the LLM blueprint generator and its prompt, the compliance extra, and any
 SecondParty blueprints.
@@ -41,13 +49,21 @@ SecondParty blueprints.
   records this package as the registrant of every registry write in both phases.
 - **Config.** A key lands in the same commit as the code that reads it.
 - **The golden fixture is never rewritten by a test.** If a curve change is deliberate, regenerate
-  it with a command and review the diff. Its rows keep the pre-rename key `token_cost_usd`; that is
+  it with `vendor/bin/testbench synthetic:capture-curves --write` and review the diff. Its rows keep the pre-rename key `token_cost_usd`; that is
   its frozen byte format, not a missed rename.
 - **The kernel stays neutral.** No month, money, seat, tenant or plan vocabulary under `Curve\`; the
   billing reading lives in `ScenarioExpander` and `Data\`.
 - **Registry docs.** Every `#[IsRegistry]` root has a page under `docs/registries/`, checked by
   `tests/Registries/RegistryDocsAdoptionTest.php`. The facts block must equal a fresh
   `RegistryFacts::render()` byte for byte.
+
+- **The projection reads nothing.** `synthetic:project` and `ScenarioProjector` resolve no model or
+  connection; `tests/Console/ProjectCommandTest.php` holds them to zero queries.
+- **The materializer bills only its own tenants.** `--bills` goes through `BillGenerator` per
+  synthetic tenant with `GenerateAllBills`' already-billed skip, never through `GenerateAllBills`
+  itself, which bills every subscription in the host.
+- **Storage belongs to the host's pipeline.** The materializer provisions a tenant's storage only
+  where the host declares no provisioning pipeline (`beam.synthetic.provision_storage`).
 
 ## Vendored family-package conventions
 

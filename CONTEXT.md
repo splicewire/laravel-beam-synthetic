@@ -1,7 +1,7 @@
 # Beam Synthetic
 
 Synthesize mode for Beam hosts. The terms below are the ones this package owns. Curve, blueprint,
-portfolio and scenario have code now; the materializer and projection follow.
+portfolio, scenario, roster, materializer and extra have code now; the projection engine follows.
 
 ## Language
 
@@ -36,9 +36,23 @@ A set of blueprints read together, each with a count and a start offset, plus op
 and expansion rates. The Scenario lens reads a portfolio in memory without touching the
 database.
 
+**Roster**:
+Who a synthesize run is about and over which months: one blueprint read as one tenant under its own
+id, or a portfolio read as `count` tenants per member (`{blueprint}-{k}`), each starting at its
+offset. The materializer writes a roster's history (closed months before now); `synthetic:project`
+reads it forward from an anchor. The tenant id seeds the curve.
+
 **Materializer**:
-The generic writer that turns a blueprint into tenants, subscriptions and ledger rows through
-beam-tenancy and beam-commerce types. Host-specific steps join it as extras.
+The generic writer that turns a roster into synthetic tenants: the tenant (saved through the host's
+provisioning path, flagged synthetic), its plan subscription, seats that follow the seat curve,
+usage on the blueprint's meter and, on request, the closed periods' bills. It writes through
+beam-tenancy and beam-commerce types only. Host-specific steps join it as extras.
+_Avoid_: seeder
+
+**Extra**:
+A host's own materialization step (`MaterializesSyntheticExtras`, registered in
+`beam.synthetic.materializers`). It runs on the central plane or, inside `$tenant->run()`, on the
+tenant plane.
 
 **Projection**:
 A forward forecast from a live baseline at an anchor month. Version 1 holds each party's last closed

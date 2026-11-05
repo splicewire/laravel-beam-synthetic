@@ -8,6 +8,10 @@ use Rushing\Popcorn\Registries\ScopesRegistrant;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Splicewire\Beam\Synthetic\Concerns\WiresBlueprints;
+use Splicewire\Beam\Synthetic\Concerns\WiresMaterializer;
+use Splicewire\Beam\Synthetic\Console\CaptureCurvesCommand;
+use Splicewire\Beam\Synthetic\Console\MaterializeCommand;
+use Splicewire\Beam\Synthetic\Console\ProjectCommand;
 
 /**
  * Synthesize mode for Beam hosts.
@@ -22,6 +26,7 @@ class BeamSyntheticServiceProvider extends PackageServiceProvider implements Cha
     use ChainsTraitMethods;
     use ScopesRegistrant;
     use WiresBlueprints;
+    use WiresMaterializer;
 
     protected function registrant(): string
     {
@@ -32,7 +37,12 @@ class BeamSyntheticServiceProvider extends PackageServiceProvider implements Cha
     {
         $package
             ->name('laravel-beam-synthetic')
-            ->hasConfigFile(['beam/synthetic']);
+            ->hasConfigFile(['beam/synthetic'])
+            ->hasCommands([
+                MaterializeCommand::class,
+                ProjectCommand::class,
+                CaptureCurvesCommand::class,
+            ]);
     }
 
     public function packageRegistered(): void
