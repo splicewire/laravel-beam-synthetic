@@ -30,8 +30,15 @@ without inventing a second pricing or revenue path. Beam tier, MIT.
 - `Console\`: `synthetic:materialize`, `synthetic:project` (zero queries) and
   `synthetic:capture-curves` (the golden fixture's regeneration command).
 
-Still to land, in the exec-board build order (the plan is the exec-board map in the ecosystem
-scratch tracker): the pure financial-projection engine with its baseline loader kept separate.
+- `Projection\`: the pure financial-projection engine. `ProjectionEngine::project($baseline,
+  $assumptions)` turns a `ProjectionBaseline` (every party's `PartyPeriodRevenue` at one closed
+  anchor month) and `ProjectionAssumptions` (churn, expansion, growth, `PriceChange`s, a horizon)
+  into a `RevenueProjection` whose `periods()` and `rows()` go to beam-commerce's
+  `RevenueMovements::from()` unchanged. It imports only its own namespace,
+  `InvalidArgumentException` and commerce's import-free `PartyPeriodRevenue`;
+  `tests/Projection/ProjectionEnginePurityTest.php` reads its `use` lines and fails on anything else.
+- `Baseline\MeasuredBaselineLoader`: the one part of a projection that reads. It loads a closed
+  month from commerce's `MeasuredRevenueLedger` as a `ProjectionBaseline`.
 
 What stays in the host: the LLM blueprint generator and its prompt, the compliance extra, and any
 SecondParty blueprints.
@@ -57,6 +64,11 @@ SecondParty blueprints.
   `tests/Registries/RegistryDocsAdoptionTest.php`. The facts block must equal a fresh
   `RegistryFacts::render()` byte for byte.
 
+- **The projection engine stays pure.** Nothing under `src/Projection/` may import a framework,
+  database or clock type, or call `now()`, `config()` or a random source. The database read is the
+  loader's, in `src/Baseline/`. A caller holding ledger-shaped rows (a board source's `revenue()`)
+  calls `ProjectionBaseline::fromRows()` itself: this package must never reach beam-exec, so the
+  loader cannot name `BoardSource`.
 - **The projection reads nothing.** `synthetic:project` and `ScenarioProjector` resolve no model or
   connection; `tests/Console/ProjectCommandTest.php` holds them to zero queries.
 - **The materializer bills only its own tenants.** `--bills` goes through `BillGenerator` per

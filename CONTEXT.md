@@ -1,7 +1,7 @@
 # Beam Synthetic
 
 Synthesize mode for Beam hosts. The terms below are the ones this package owns. Curve, blueprint,
-portfolio, scenario, roster, materializer and extra have code now; the projection engine follows.
+portfolio, scenario, roster, materializer, extra and projection have code now.
 
 ## Language
 
@@ -55,5 +55,15 @@ A host's own materialization step (`MaterializesSyntheticExtras`, registered in
 tenant plane.
 
 **Projection**:
-A forward forecast from a live baseline at an anchor month. Version 1 holds each party's last closed
-period flat, adjusted by optional portfolio churn and expansion rates; it fits no curves.
+A forward forecast of revenue from a baseline at an anchor month. Version 1 holds each party's last
+closed month flat and moves it by monthly assumptions: churn and expansion (a portfolio's rates map
+onto these), growth (new paying parties) and price changes. It fits no curves. The engine is pure,
+and its rows are the ledger's `PartyPeriodRevenue`, so the same `RevenueMovements` aggregates real
+and projected revenue. Not to be confused with `synthetic:project`, which runs a roster's usage and
+seat curves forward.
+_Avoid_: forecast model, simulation
+
+**Baseline**:
+The projection's starting point: every party's revenue in one closed month, the **anchor**. The
+baseline loader reads it from the live ledger; that read is the only database access in a
+projection.

@@ -23,7 +23,9 @@ What ships now:
   curves.
 - **A third registry**, `beam.synthetic.materializers`, for a host's own materialization steps.
 
-The financial-projection engine follows.
+- **The financial-projection engine** (`Splicewire\Beam\Synthetic\Projection\`): pure and
+  deterministic, it projects a closed month's revenue forward under churn, expansion, growth and
+  price-change assumptions, as rows beam-commerce's `RevenueMovements` aggregates unchanged.
 
 ## Install
 
@@ -91,6 +93,49 @@ php artisan synthetic:project --portfolio=demo-mixed-book
 
 The projection reads the same members and curves the materializer writes, forward from an anchor
 month, and runs no database query at all.
+
+## Projecting revenue
+
+```php
+use Splicewire\Beam\Commerce\Revenue\RevenueMovements;
+use Splicewire\Beam\Synthetic\Baseline\MeasuredBaselineLoader;
+use Splicewire\Beam\Synthetic\Projection\PriceChange;
+use Splicewire\Beam\Synthetic\Projection\ProjectionAssumptions;
+use Splicewire\Beam\Synthetic\Projection\ProjectionEngine;
+
+$baseline = app(MeasuredBaselineLoader::class)->lastClosed(now()->toImmutable());
+
+$projection = app(ProjectionEngine::class)->project($baseline, new ProjectionAssumptions(
+    horizonMonths: 12,
+    churnRate: 0.02,        // monthly share of paying parties lost
+    expansionRate: 0.01,    // monthly change in each remaining party's recurring revenue
+    growthRate: 0.04,       // monthly new paying parties, as a share of the paying book
+    priceChanges: [new PriceChange('2027-03', 0.10, 'starter')],
+));
+
+$movements = RevenueMovements::from($projection->periods(), $projection->rows());
+$movements->mrr('2027-06');
+```
+
+The loader is the only part that reads the database: it takes one closed month from the live
+revenue ledger. Each party's month is held flat and then moved by the assumptions. The engine
+itself reads no clock, config or database, and the same inputs give byte-identical output. Rows you
+already hold, in the ledger's `PartyPeriodRevenue` shape, go in through
+`ProjectionBaseline::fromRows($anchor, $rows)`.
+
+A few rules worth knowing:
+
+- Churn and growth count whole parties. A running remainder carries the fractions between months,
+  and both rates apply to the paying parties at the end of the month before. Parties leave in a
+  fixed order: the baseline's by party id, then new ones in the order they arrived.
+- A negative growth rate means no new parties. It never removes one, because losing parties is
+  churn's job.
+- New parties are named `projected-0001` and so on. By default each pays the baseline's average
+  paying party and uses its average usage.
+- A party's recurring revenue never drops below zero. A party at zero keeps its row, and the
+  aggregator reads it as churn.
+- A price change takes effect in a projected month. One at or before the anchor month is refused,
+  because the anchor's prices are already in the baseline.
 
 ## Registries
 
