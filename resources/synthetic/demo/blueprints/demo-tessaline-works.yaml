@@ -1,0 +1,13 @@
+# Demo synthetic-tenant blueprint: generic and fictional, no real business or person, no vertical.
+# A smaller team whose usage rises and falls with the calendar year while its headcount creeps up.
+id: demo-tessaline-works
+name: Tessaline Works
+ownerName: Theo Brannick
+ownerEmail: theo.brannick@tessaline.example
+scaffoldPackSlug: null
+planSlug: starter
+scenario: seasonal
+windowMonths: 12
+targetMonthlyUsageCostUsd: 24.0
+startingSeats: 2
+endingSeats: 4

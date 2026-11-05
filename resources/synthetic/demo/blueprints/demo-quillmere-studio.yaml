@@ -1,0 +1,14 @@
+# Demo synthetic-tenant blueprint: generic and fictional, no real business or person, no vertical.
+# A small team that grows steadily across the year. The `.example` domain is reserved, so the
+# owner's address can never reach anyone.
+id: demo-quillmere-studio
+name: Quillmere Studio
+ownerName: Mara Ellison
+ownerEmail: mara.ellison@quillmere.example
+scaffoldPackSlug: null
+planSlug: professional
+scenario: steady-ramp
+windowMonths: 12
+targetMonthlyUsageCostUsd: 40.0
+startingSeats: 3
+endingSeats: 9

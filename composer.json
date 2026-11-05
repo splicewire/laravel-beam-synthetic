@@ -21,10 +21,13 @@
         "illuminate/contracts": "^11.0|^12.0|^13.0",
         "illuminate/support": "^11.0|^12.0|^13.0",
         "rushing/php-popcorn": "dev-main",
+        "spatie/laravel-data": "^4.0",
         "spatie/laravel-package-tools": "^1.16",
+        "spatie/typescript-transformer": "^3.0",
         "splicewire/laravel-beam": "*",
         "splicewire/laravel-beam-commerce": "*",
-        "splicewire/laravel-beam-tenancy": "*"
+        "splicewire/laravel-beam-tenancy": "*",
+        "symfony/yaml": "^6.3|^7.0|^8.0"
     },
     "require-dev": {
         "laravel/pint": "^1.0",

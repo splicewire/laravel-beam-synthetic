@@ -1,0 +1,14 @@
+# Demo synthetic-tenant blueprint: generic and fictional, no real business or person, no vertical.
+# Busy at first, nearly silent through the middle of the year, then back. It keeps paying for its
+# seats throughout, so this is a quiet patch, not a departure (that would be `endedAtMonth`).
+id: demo-orrowby-hart
+name: Orrowby & Hart
+ownerName: Ines Okafor-Lyle
+ownerEmail: ines.okafor-lyle@orrowby.example
+scaffoldPackSlug: null
+planSlug: professional
+scenario: churned-then-resumed
+windowMonths: 12
+targetMonthlyUsageCostUsd: 55.0
+startingSeats: 5
+endingSeats: 8

@@ -1,0 +1,82 @@
+---
+title: Synthetic portfolios
+segment: beam.synthetic.portfolios
+nav_order: 100
+excerpt: Named sets of synthetic-tenant blueprints, read together as a scenario or a projection's population.
+---
+
+# Synthetic portfolios
+
+`beam.synthetic.portfolios` holds **portfolios**: named sets of blueprints read together. A portfolio
+is the population behind a scenario a board can be shown ("what would this book of customers look
+like?") or the starting point a projection runs forward. It names blueprints by id, with a count and
+a start offset for each, so one blueprint can stand for a cohort that joins part-way through the
+window.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration; regenerate it, do not edit between these markers. */}
+
+- **Root:** `beam.synthetic.portfolios`
+- **Entries:** `Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData`
+- **Duplicate keys:** Reject — registering a taken key throws
+- **Population:** Optional — an empty registry is normal
+- **Order:** `100` (display order, ascending)
+- **Declared by:** `Splicewire\Beam\Synthetic\Blueprints\PortfolioRegistry`
+
+{/* registry-facts:end */}
+
+<RegistryRegistrants root="beam.synthetic.portfolios" />
+
+## Where portfolios come from
+
+Exactly as for [blueprints](beam.synthetic.blueprints): the host declares directories in
+`config('beam.synthetic.portfolio_paths')`, and every `*.yaml`, `*.yml` and `*.json` file directly
+inside each one is one portfolio, keyed by its `id`. The default is this package's Demo portfolio,
+`demo-mixed-book`, over the three Demo blueprints:
+
+```yaml
+id: demo-mixed-book
+label: Demo mixed book
+members:
+  - blueprint: demo-quillmere-studio
+    count: 3
+    startOffsetMonths: 0
+  - blueprint: demo-tessaline-works
+    count: 4
+    startOffsetMonths: 2
+  - blueprint: demo-orrowby-hart
+    count: 2
+    startOffsetMonths: 5
+churnRate: 0.02
+expansionRate: 0.01
+```
+
+`count` defaults to 1 and `startOffsetMonths` to 0. `churnRate` and `expansionRate` are optional
+monthly fractions from 0 to 1 that a projection applies on top of each member's curve; leave them out
+and the portfolio states none.
+
+## What is checked, and where
+
+A portfolio file is refused when it is read if it has no members, a member names no blueprint, a
+count is below 1, an offset is negative, or a rate falls outside 0 to 1.
+
+Whether each member names a blueprint this host has is checked separately, because a portfolio file
+cannot know which blueprints a host declares:
+
+```php
+use Splicewire\Beam\Synthetic\Blueprints\BlueprintRegistry;
+use Splicewire\Beam\Synthetic\Blueprints\PortfolioRegistry;
+
+$portfolio = app(PortfolioRegistry::class)->get('demo-mixed-book');
+$missing = app(BlueprintRegistry::class)->missingFrom($portfolio); // [] when every member resolves
+```
+
+The [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies) is **reject**, for the
+same reason as blueprints: two portfolios under one id would leave it ambiguous which one a board is
+showing.
+
+## Going deeper
+
+The source is
+[`PortfolioRegistry`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Blueprints/PortfolioRegistry.php),
+and the entry shape is
+[`ScenarioPortfolioData`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Data/ScenarioPortfolioData.php).

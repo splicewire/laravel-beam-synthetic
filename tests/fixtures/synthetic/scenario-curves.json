@@ -1,0 +1,257 @@
+{
+    "steady-ramp": [
+        {
+            "month": "2027-01",
+            "token_cost_usd": 9.5,
+            "seats": 6
+        },
+        {
+            "month": "2027-02",
+            "token_cost_usd": 10.78,
+            "seats": 6
+        },
+        {
+            "month": "2027-03",
+            "token_cost_usd": 13.62,
+            "seats": 7
+        },
+        {
+            "month": "2027-04",
+            "token_cost_usd": 18.07,
+            "seats": 7
+        },
+        {
+            "month": "2027-05",
+            "token_cost_usd": 20.44,
+            "seats": 8
+        },
+        {
+            "month": "2027-06",
+            "token_cost_usd": 21.22,
+            "seats": 8
+        },
+        {
+            "month": "2027-07",
+            "token_cost_usd": 21.87,
+            "seats": 9
+        },
+        {
+            "month": "2027-08",
+            "token_cost_usd": 26.02,
+            "seats": 9
+        },
+        {
+            "month": "2027-09",
+            "token_cost_usd": 27.94,
+            "seats": 9
+        },
+        {
+            "month": "2027-10",
+            "token_cost_usd": 32.68,
+            "seats": 9
+        },
+        {
+            "month": "2027-11",
+            "token_cost_usd": 35.88,
+            "seats": 10
+        },
+        {
+            "month": "2027-12",
+            "token_cost_usd": 38,
+            "seats": 10
+        }
+    ],
+    "seasonal": [
+        {
+            "month": "2027-01",
+            "token_cost_usd": 30.14,
+            "seats": 4
+        },
+        {
+            "month": "2027-02",
+            "token_cost_usd": 40.26,
+            "seats": 4
+        },
+        {
+            "month": "2027-03",
+            "token_cost_usd": 50.07,
+            "seats": 5
+        },
+        {
+            "month": "2027-04",
+            "token_cost_usd": 57.18,
+            "seats": 5
+        },
+        {
+            "month": "2027-05",
+            "token_cost_usd": 51.37,
+            "seats": 6
+        },
+        {
+            "month": "2027-06",
+            "token_cost_usd": 42.57,
+            "seats": 6
+        },
+        {
+            "month": "2027-07",
+            "token_cost_usd": 28.84,
+            "seats": 7
+        },
+        {
+            "month": "2027-08",
+            "token_cost_usd": 16.69,
+            "seats": 7
+        },
+        {
+            "month": "2027-09",
+            "token_cost_usd": 5.24,
+            "seats": 7
+        },
+        {
+            "month": "2027-10",
+            "token_cost_usd": 2.9,
+            "seats": 8
+        },
+        {
+            "month": "2027-11",
+            "token_cost_usd": 4.63,
+            "seats": 8
+        },
+        {
+            "month": "2027-12",
+            "token_cost_usd": 14.71,
+            "seats": 8
+        }
+    ],
+    "churned-then-resumed": [
+        {
+            "month": "2027-01",
+            "token_cost_usd": 22.54,
+            "seats": 5
+        },
+        {
+            "month": "2027-02",
+            "token_cost_usd": 29.52,
+            "seats": 5
+        },
+        {
+            "month": "2027-03",
+            "token_cost_usd": 36.51,
+            "seats": 5
+        },
+        {
+            "month": "2027-04",
+            "token_cost_usd": 42.21,
+            "seats": 5
+        },
+        {
+            "month": "2027-05",
+            "token_cost_usd": 1.64,
+            "seats": 6
+        },
+        {
+            "month": "2027-06",
+            "token_cost_usd": 1.68,
+            "seats": 6
+        },
+        {
+            "month": "2027-07",
+            "token_cost_usd": 1.75,
+            "seats": 7
+        },
+        {
+            "month": "2027-08",
+            "token_cost_usd": 1.82,
+            "seats": 7
+        },
+        {
+            "month": "2027-09",
+            "token_cost_usd": 35.37,
+            "seats": 7
+        },
+        {
+            "month": "2027-10",
+            "token_cost_usd": 39.57,
+            "seats": 7
+        },
+        {
+            "month": "2027-11",
+            "token_cost_usd": 45.34,
+            "seats": 8
+        },
+        {
+            "month": "2027-12",
+            "token_cost_usd": 49.65,
+            "seats": 8
+        }
+    ],
+    "hard-churn": [
+        {
+            "month": "2027-01",
+            "token_cost_usd": 9.5,
+            "seats": 6
+        },
+        {
+            "month": "2027-02",
+            "token_cost_usd": 9.98,
+            "seats": 6
+        },
+        {
+            "month": "2027-03",
+            "token_cost_usd": 10.53,
+            "seats": 7
+        },
+        {
+            "month": "2027-04",
+            "token_cost_usd": 14.79,
+            "seats": 7
+        },
+        {
+            "month": "2027-05",
+            "token_cost_usd": 17.59,
+            "seats": 8
+        },
+        {
+            "month": "2027-06",
+            "token_cost_usd": 19.07,
+            "seats": 8
+        },
+        {
+            "month": "2027-07",
+            "token_cost_usd": 21.46,
+            "seats": 8
+        },
+        {
+            "month": "2027-08",
+            "token_cost_usd": 24.97,
+            "seats": 9
+        },
+        {
+            "month": "2027-09",
+            "token_cost_usd": 0,
+            "seats": 0
+        },
+        {
+            "month": "2027-10",
+            "token_cost_usd": 0,
+            "seats": 0
+        },
+        {
+            "month": "2027-11",
+            "token_cost_usd": 0,
+            "seats": 0
+        },
+        {
+            "month": "2027-12",
+            "token_cost_usd": 0,
+            "seats": 0
+        }
+    ],
+    "single-month": [
+        {
+            "month": "2027-01",
+            "token_cost_usd": 42,
+            "seats": 9
+        }
+    ]
+}

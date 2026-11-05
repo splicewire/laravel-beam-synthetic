@@ -1,0 +1,16 @@
+# Demo scenario portfolio: the three Demo blueprints read together as a small book of customers,
+# with later cohorts joining part-way through. Rates are monthly fractions a projection applies.
+id: demo-mixed-book
+label: Demo mixed book
+members:
+  - blueprint: demo-quillmere-studio
+    count: 3
+    startOffsetMonths: 0
+  - blueprint: demo-tessaline-works
+    count: 4
+    startOffsetMonths: 2
+  - blueprint: demo-orrowby-hart
+    count: 2
+    startOffsetMonths: 5
+churnRate: 0.02
+expansionRate: 0.01

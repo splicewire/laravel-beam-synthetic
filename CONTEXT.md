@@ -1,7 +1,7 @@
 # Beam Synthetic
 
-Synthesize mode for Beam hosts. The terms below are the ones this package will own; each gains its
-code in a later exec-board ticket.
+Synthesize mode for Beam hosts. The terms below are the ones this package owns. Curve, blueprint,
+portfolio and scenario have code now; the materializer and projection follow.
 
 ## Language
 
@@ -11,17 +11,29 @@ in the database, so it shows up in Live reads unless a host's reporting toggle e
 _Avoid_: fake tenant, demo account
 
 **Curve**:
-A month-by-month shape (growth, usage, churn) produced by the neutral kernel in `Curve\`. A curve
-knows nothing about tenants, plans or money.
+A period-by-period pair of series (a scalar and an integer) produced by the neutral kernel in
+`Curve\` from a growth shape, a seed and an envelope. A curve knows nothing about tenants, plans,
+months or money; `ScenarioExpander` reads its scalar as usage cost and its integer as seats.
+
+**Growth shape**:
+The curve's form: steady ramp, seasonal, or dip-then-recover. A **scenario** is the billing name for
+one (`churned-then-resumed` is the dip-then-recover shape).
+
+**Cutoff**:
+The last live period of a curve; every period after it is zero. A blueprint's `endedAtMonth` (hard
+churn) becomes the cutoff.
+_Avoid_: churn, when you mean the cutoff (churned-then-resumed is a shape, not a cutoff)
 
 **Blueprint**:
-The declarative description of one synthetic party: its envelope, its months and its scenario. A
+The declarative description of one synthetic party: its identity, plan, scenario, usage target and
+seat ramp, plus an optional hard-churn month and usage meter. A
 blueprint is data and can be replayed and validated; how one is generated (by hand, or by a host's
 LLM prompt) is the host's business.
 _Avoid_: fixture, seed
 
 **Portfolio**:
-A set of blueprints read together. The Scenario lens reads a portfolio in memory without touching the
+A set of blueprints read together, each with a count and a start offset, plus optional monthly churn
+and expansion rates. The Scenario lens reads a portfolio in memory without touching the
 database.
 
 **Materializer**:

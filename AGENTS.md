@@ -6,19 +6,24 @@ without inventing a second pricing or revenue path. Beam tier, MIT.
 
 ## What is here now
 
-The scaffold: the service provider, `config/beam/synthetic.php` (merged under `beam.synthetic.*`,
-no keys yet), and the testbench and Pest harness. Nothing is registered and no key is read yet.
+- `Curve\`: the neutral curve kernel (`CurveKernel`, `CurveEnvelope`, `CurvePeriod`, `CurvePoint`,
+  `GrowthShape`). It imports only PHP's `Random` engine; `tests/Curve/CurveKernelPurityTest.php`
+  reads its `use` lines and fails on anything else.
+- `Data\` and `Enums\`: the blueprint family, lifted from tower and the flagship.
+  `SyntheticTenantBlueprintData` owns replay validation (an unknown scenario slug is refused in
+  `from()`), reads the old `targetMonthlyTokenCostUsd` key for one release, and defaults
+  `usageMeter` from `beam.synthetic.usage_meter`.
+- `ScenarioExpander`: the billing reading of the kernel (months, usage cost, seats).
+- `Golden\GoldenCurveCases` plus `tests/fixtures/synthetic/scenario-curves.json`: the golden curves,
+  byte-identical to the fixture captured in the flagship before the lift.
+- `Blueprints\`: `BlueprintRegistry` (`beam.synthetic.blueprints`) and `PortfolioRegistry`
+  (`beam.synthetic.portfolios`), filled from `beam.synthetic.blueprint_paths` /
+  `portfolio_paths` by a `DirectoryRegistrar`, and the Demo set under `resources/synthetic/demo/`.
 
-What lands here, in the exec-board build order (the plan is the exec-board map in the ecosystem
-scratch tracker):
-
-- `Curve\`: the neutral curve kernel. It names no framework or domain type.
-- The Blueprint, envelope and month DTO family and the scenario enum, lifted from tower and the
-  flagship and kept golden-identical against unchanged fixture bytes.
-- A blueprint and portfolio registry, with generic Demo blueprints.
-- The generic materializer, a host-extras registry, and the `materialize`, `project` and
-  `capture-curves` commands.
-- The pure financial-projection engine, with its baseline loader kept separate.
+Still to land, in the exec-board build order (the plan is the exec-board map in the ecosystem
+scratch tracker): the generic materializer, a host-extras registry, the `materialize`, `project` and
+`capture-curves` commands, and the pure financial-projection engine with its baseline loader kept
+separate.
 
 What stays in the host: the LLM blueprint generator and its prompt, the compliance extra, and any
 SecondParty blueprints.
@@ -35,6 +40,14 @@ SecondParty blueprints.
   `#[Chained('register')]` or `#[Chained('boot')]` with a declared `order:`. `ScopesRegistrant`
   records this package as the registrant of every registry write in both phases.
 - **Config.** A key lands in the same commit as the code that reads it.
+- **The golden fixture is never rewritten by a test.** If a curve change is deliberate, regenerate
+  it with a command and review the diff. Its rows keep the pre-rename key `token_cost_usd`; that is
+  its frozen byte format, not a missed rename.
+- **The kernel stays neutral.** No month, money, seat, tenant or plan vocabulary under `Curve\`; the
+  billing reading lives in `ScenarioExpander` and `Data\`.
+- **Registry docs.** Every `#[IsRegistry]` root has a page under `docs/registries/`, checked by
+  `tests/Registries/RegistryDocsAdoptionTest.php`. The facts block must equal a fresh
+  `RegistryFacts::render()` byte for byte.
 
 ## Vendored family-package conventions
 

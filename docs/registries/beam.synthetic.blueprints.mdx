@@ -1,0 +1,110 @@
+---
+title: Synthetic blueprints
+segment: beam.synthetic.blueprints
+nav_order: 100
+excerpt: The synthetic-tenant blueprints a host can replay, read from the directories it declares.
+---
+
+# Synthetic blueprints
+
+`beam.synthetic.blueprints` holds the **blueprints** a host can replay into synthetic tenants. A
+blueprint is a small declarative file that describes one fictional customer: who it is, which plan
+it is on, the shape of its year (a steady ramp, a seasonal swing, or a quiet patch and a recovery),
+the monthly usage cost its curve targets, and how its seats grow. Replaying a blueprint always gives
+the same month-by-month numbers, because its id seeds the curve.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration; regenerate it, do not edit between these markers. */}
+
+- **Root:** `beam.synthetic.blueprints`
+- **Entries:** `Splicewire\Beam\Synthetic\Data\SyntheticTenantBlueprintData`
+- **Duplicate keys:** Reject — registering a taken key throws
+- **Population:** Optional — an empty registry is normal
+- **Order:** `100` (display order, ascending)
+- **Declared by:** `Splicewire\Beam\Synthetic\Blueprints\BlueprintRegistry`
+
+{/* registry-facts:end */}
+
+<RegistryRegistrants root="beam.synthetic.blueprints" />
+
+## Where blueprints come from
+
+The host declares directories in `config('beam.synthetic.blueprint_paths')`. Every `*.yaml`, `*.yml`
+and `*.json` file directly inside each directory is one blueprint, keyed by its `id`. The files are
+read the first time the registry is resolved, so a host that never synthesizes never parses them.
+A relative path resolves against the host's base path.
+
+The default is this package's three Demo blueprints: generic, fictional teams with no industry,
+one per scenario. A host that declares its own list replaces the default, so keep
+`DemoBlueprints::blueprints()` in the list if you want both:
+
+```php
+// config/beam/synthetic.php
+use Splicewire\Beam\Synthetic\Blueprints\DemoBlueprints;
+
+return [
+    'blueprint_paths' => [
+        DemoBlueprints::blueprints(),
+        'database/seeders/data/synthetic',
+    ],
+];
+```
+
+A blueprint file reads like this:
+
+```yaml
+id: demo-quillmere-studio
+name: Quillmere Studio
+ownerName: Mara Ellison
+ownerEmail: mara.ellison@quillmere.example
+scaffoldPackSlug: null
+planSlug: professional
+scenario: steady-ramp
+windowMonths: 12
+targetMonthlyUsageCostUsd: 40.0
+startingSeats: 3
+endingSeats: 9
+```
+
+Two optional fields: `endedAtMonth`, the month of the window in which the customer actually left
+(its usage and seats stop after that month), and `usageMeter`, the meter its usage cost is billed
+against. A blueprint that names no meter takes `config('beam.synthetic.usage_meter')`. The usage
+target's old name, `targetMonthlyTokenCostUsd`, is still read for one release; a file that sets both
+names is refused.
+
+A package or host can also register a blueprint object from code:
+
+```php
+use Splicewire\Beam\Synthetic\Blueprints\BlueprintRegistry;
+use Splicewire\Beam\Synthetic\Data\SyntheticTenantBlueprintData;
+
+app(BlueprintRegistry::class)->register('acme-trial', SyntheticTenantBlueprintData::from($payload));
+```
+
+## A file that cannot replay fails loudly
+
+Reading the directories stops with an error that names the file when:
+
+- a declared path is not a directory, since a typo would otherwise register nothing;
+- a file does not parse, or its `scenario` is not one the curve can replay (the message lists the
+  valid ones);
+- two files declare the same id. The message names both.
+
+The [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies) is **reject** for code
+registrations too. An id seeds the curve and names the blueprint in a portfolio, so a second blueprint
+under a taken id is a mistake, not an override. To replace a Demo blueprint, leave the Demo directory
+out of `blueprint_paths`.
+
+## Reading it
+
+`get($id)` returns the blueprint, or `null` for an id this host does not have: ids arrive from files
+and portfolios, so a miss is data, not a bug. `all()` returns every blueprint in read order.
+`missingFrom($portfolio)` lists the ids a portfolio names that this host lacks.
+
+## Going deeper
+
+The source is
+[`BlueprintRegistry`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Blueprints/BlueprintRegistry.php),
+and the entry shape is
+[`SyntheticTenantBlueprintData`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Data/SyntheticTenantBlueprintData.php).
+The sibling registry, which groups blueprints into a population, is
+[`beam.synthetic.portfolios`](beam.synthetic.portfolios).

@@ -7,6 +7,7 @@ use Rushing\Popcorn\Contracts\ChainsTraitMethods as ChainsTraitMethodsContract;
 use Rushing\Popcorn\Registries\ScopesRegistrant;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Splicewire\Beam\Synthetic\Concerns\WiresBlueprints;
 
 /**
  * Synthesize mode for Beam hosts.
@@ -20,6 +21,7 @@ class BeamSyntheticServiceProvider extends PackageServiceProvider implements Cha
 {
     use ChainsTraitMethods;
     use ScopesRegistrant;
+    use WiresBlueprints;
 
     protected function registrant(): string
     {
