@@ -28,6 +28,11 @@ window.
 
 ## Where portfolios come from
 
+Two places: files the host declares, and portfolios stored at runtime. The registry's own entries
+are the declared ones; it reads the stored ones after them.
+
+### Files
+
 Exactly as for [blueprints](beam.synthetic.blueprints): the host declares directories in
 `config('beam.synthetic.portfolio_paths')`, and every `*.yaml`, `*.yml` and `*.json` file directly
 inside each one is one portfolio, keyed by its `id`. The default is this package's Demo portfolio,
@@ -56,13 +61,53 @@ curves as they are. They are rates a projection can borrow. When the exec board'
 names a portfolio (`projection:<id>`), the rates it states win over the host's configured ones while
 the live baseline is run forward. Leave them out and the portfolio states none.
 
+### Stored at runtime
+
+A host can also save portfolios while it runs. They live in the central `beam_synthetic_portfolios`
+table, which this package's migration creates (`vendor:publish --tag=beam-synthetic-migrations`, or
+`splicewire:beam:install`), and they are written through `StoredPortfolios`. The exec board's
+Scenarios panel is the usual writer: a board member composes a portfolio from the host's blueprints,
+previews it, and saves it under an id.
+
+```php
+use Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData;
+use Splicewire\Beam\Synthetic\Store\StoredPortfolios;
+
+app(StoredPortfolios::class)->save(ScenarioPortfolioData::from([
+    'id' => 'board-upside',
+    'label' => 'Board upside',
+    'members' => [['blueprint' => 'demo-quillmere-studio', 'count' => 6]],
+]), causer: $user);
+```
+
+`get()` and `all()` read both kinds; `declared()` and `declares()` read the files (and code
+registrations) only. **A declared id always wins.** Saving under an id a file declares is refused,
+and a stored row whose id a file later comes to declare is never read (`StoredPortfolios::shadowed()`
+names it). A stored row is validated again whenever it is read, by the same rules as a file plus the
+blueprint check below, so one that names a removed blueprint is left out (`invalid()` says why)
+rather than breaking a reader. Every save and delete goes to the central activity trail, under
+`log_name` `synthetic-portfolios`.
+
+Reading a declared id never touches the database. Only a miss, or `all()`, asks the store: two
+queries (whether the table exists, then its rows), once per request. Set
+`beam.synthetic.portfolio_store` to `false` to read files only.
+
+### Who reads them
+
 A portfolio is read by `synthetic:materialize --portfolio=<id>` and `synthetic:project
 --portfolio=<id>`, and by the exec board's Scenario lens (`scenario:<id>`), which holds it in memory.
 
+## How to add a portfolio
+
+- **In code review:** add a file under a directory in `beam.synthetic.portfolio_paths`. It wins its id.
+- **At runtime:** save it with the exec board's Scenarios panel (or `StoredPortfolios::save()`). It is
+  readable from the next request, under any id no file declares.
+
 ## What is checked, and where
 
-A portfolio file is refused when it is read if it has no members, a member names no blueprint, a
-count is below 1, an offset is negative, or a rate falls outside 0 to 1.
+A portfolio file (or a stored row) is refused when it is read if it has no members, a member names
+no blueprint, a count is below 1, an offset is negative, or a rate falls outside 0 to 1. A stored
+portfolio's id must also be kebab-case, because it becomes the lens value `scenario:<id>`.
 
 Whether each member names a blueprint this host has is checked separately, because a portfolio file
 cannot know which blueprints a host declares:
@@ -82,6 +127,8 @@ showing.
 ## Going deeper
 
 The source is
-[`PortfolioRegistry`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Blueprints/PortfolioRegistry.php),
+[`PortfolioRegistry`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Blueprints/PortfolioRegistry.php)
+with
+[`StoredPortfolios`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Store/StoredPortfolios.php),
 and the entry shape is
 [`ScenarioPortfolioData`](https://github.com/splicewire/laravel-beam-synthetic/blob/main/src/Data/ScenarioPortfolioData.php).

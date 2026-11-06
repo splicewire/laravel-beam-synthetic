@@ -19,6 +19,12 @@ without inventing a second pricing or revenue path. Beam tier, MIT.
 - `Blueprints\`: `BlueprintRegistry` (`beam.synthetic.blueprints`) and `PortfolioRegistry`
   (`beam.synthetic.portfolios`), filled from `beam.synthetic.blueprint_paths` /
   `portfolio_paths` by a `DirectoryRegistrar`, and the Demo set under `resources/synthetic/demo/`.
+- `Store\`: `StoredPortfolios` (scoped) and the `'central'` `StoredPortfolio` model over
+  `beam_synthetic_portfolios` (the migration stub `database/migrations/create_beam_synthetic_portfolios_table.php.stub`,
+  published as `beam-synthetic-migrations` and registered into beam's install manifest). Portfolios saved at
+  runtime (the exec board's scenario builder). `PortfolioRegistry::get()`/`all()` read declared portfolios, then
+  stored ones; a declared id always wins (saving one is refused; a shadowed row is never read). Rows are
+  re-validated on read; saves and deletes go to the central activity trail (`synthetic-portfolios`).
 - `Roster\`: `SyntheticRoster` (who a run is about: one blueprint as one tenant, or a portfolio as
   `{blueprint}-{k}` copies at their offsets; history months back from now, forward months from an
   anchor, deliberately two methods) and the pure `ScenarioProjector`.
@@ -69,8 +75,13 @@ SecondParty blueprints.
   loader's, in `src/Baseline/`. A caller holding ledger-shaped rows (a board source's `revenue()`)
   calls `ProjectionBaseline::fromRows()` itself: this package must never reach beam-exec, so the
   loader cannot name `BoardSource`.
-- **The projection reads nothing.** `synthetic:project` and `ScenarioProjector` resolve no model or
-  connection; `tests/Console/ProjectCommandTest.php` holds them to zero queries.
+- **The projection reads nothing.** `ScenarioProjector` resolves no model or connection, and neither does
+  `synthetic:project` for a declared blueprint or portfolio; `tests/Console/ProjectCommandTest.php` holds them to
+  zero queries. Resolving a STORED portfolio id (or listing with no argument) reads the store first, two queries,
+  before the projection runs; the projection itself still reads nothing.
+- **A declared portfolio is never shadowed by a stored one.** Keep `PortfolioRegistry::declares()`, `declared()`
+  and a declared-id `get()` query-free: the Scenario lens's default portfolio and every file lookup rely on it
+  (`tests/Store/StoredPortfoliosTest.php`).
 - **The materializer bills only its own tenants.** `--bills` goes through `BillGenerator` per
   synthetic tenant with `GenerateAllBills`' already-billed skip, never through `GenerateAllBills`
   itself, which bills every subscription in the host.

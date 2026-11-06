@@ -26,6 +26,12 @@ return [
         DemoBlueprints::portfolios(),
     ],
 
+    // Whether PortfolioRegistry also reads the portfolios a host saved at runtime (StoredPortfolios: the central
+    // `beam_synthetic_portfolios` table, published by this package's migration and written by the exec board's
+    // scenario builder). A declared portfolio (a file above) always wins its id. false reads files only and never
+    // queries; true on a host without the table reads no stored portfolios rather than failing.
+    'portfolio_store' => true,
+
     // The host's own materialization steps, `name => class` (each a MaterializesSyntheticExtras), read into
     // SyntheticExtrasRegistry (`beam.synthetic.materializers`). They run in this order, after the generic writes.
     'materializers' => [],

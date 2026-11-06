@@ -16,6 +16,9 @@ What ships now:
   envelope through the kernel into a month-by-month series of usage cost and seats.
 - **Two registries** of blueprints and portfolios, filled from directories the host declares, with
   three generic Demo blueprints and a Demo portfolio by default.
+- **Stored portfolios** (`Store\StoredPortfolios`): portfolios a host saves at runtime, in the central
+  `beam_synthetic_portfolios` table, read by the portfolio registry after the files. The exec board's
+  scenario builder writes them.
 
 - **The materializer** (`SyntheticTenantMaterializer`) and three commands: `synthetic:materialize`
   writes a blueprint or portfolio into the host as synthetic tenants, `synthetic:project` runs one
@@ -37,11 +40,19 @@ auto-discovered. To override config, publish `config/beam/synthetic.php`:
 php artisan vendor:publish --tag=beam-synthetic-config
 ```
 
+To store portfolios at runtime, publish and run the migration (`splicewire:beam:install` does both):
+
+```bash
+php artisan vendor:publish --tag=beam-synthetic-migrations
+php artisan migrate
+```
+
 | key | default | what it does |
 |---|---|---|
 | `beam.synthetic.usage_meter` | `openai.tokens` | The meter a blueprint's usage cost is billed against when it names none. |
 | `beam.synthetic.blueprint_paths` | the Demo blueprints | Directories of blueprint files. Declaring your own list replaces the default. |
 | `beam.synthetic.portfolio_paths` | the Demo portfolio | Directories of portfolio files. |
+| `beam.synthetic.portfolio_store` | `true` | Also read portfolios stored at runtime (`beam_synthetic_portfolios`). `false` reads files only and never queries; a host without the table reads none. |
 | `beam.synthetic.materializers` | `[]` | The host's own materialization steps, `name => class`. |
 | `beam.synthetic.usage_units_per_usd` | `1000` | Metered units per dollar of synthetic usage, when the host declares no unit cost for the meter. |
 | `beam.synthetic.provision_storage` | `true` | Provision a synthetic tenant's storage where the host declares no provisioning pipeline. |
@@ -92,7 +103,46 @@ php artisan synthetic:project --portfolio=demo-mixed-book
 ```
 
 The projection reads the same members and curves the materializer writes, forward from an anchor
-month, and runs no database query at all.
+month, and runs no database query at all. Naming a stored portfolio (or listing them) reads the store first:
+two queries, before the projection starts.
+
+## How to add a portfolio
+
+A portfolio is a named set of blueprints read together: each member names a blueprint, a count and a
+start offset, and the portfolio may state monthly `churnRate` and `expansionRate` for a projection to
+borrow. There are two ways to add one, and the registry reads both.
+
+**As a file.** Put a YAML or JSON file in a directory listed in `beam.synthetic.portfolio_paths`
+(list `DemoBlueprints::portfolios()` too to keep the Demo one):
+
+```yaml
+id: board-upside
+label: Board upside
+members:
+  - blueprint: demo-quillmere-studio
+    count: 6
+  - blueprint: demo-orrowby-hart
+    count: 2
+    startOffsetMonths: 4
+churnRate: 0.02
+```
+
+**At runtime.** Store one through `StoredPortfolios` (the exec board's Scenarios panel does this for
+you):
+
+```php
+use Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData;
+use Splicewire\Beam\Synthetic\Store\StoredPortfolios;
+
+app(StoredPortfolios::class)->save(ScenarioPortfolioData::from([...]), causer: $user);
+```
+
+A declared (file) id always wins: saving under one is refused, and a stored row whose id a file later
+declares is never read. A stored row is validated again on every read, so one that names a removed
+blueprint is left out rather than breaking a reader. Every save and delete is written to the central
+activity trail (`log_name` `synthetic-portfolios`). Either way the portfolio is then
+`synthetic:project --portfolio=<id>`, `synthetic:materialize --portfolio=<id>`, and on the exec board
+the Scenario lens `scenario:<id>`.
 
 ## Projecting revenue
 
@@ -144,11 +194,12 @@ This package declares three registries, each documented under `docs/registries/`
 - [`beam.synthetic.blueprints`](docs/registries/beam.synthetic.blueprints.mdx): the synthetic-tenant
   blueprints a host can replay, keyed by id.
 - [`beam.synthetic.portfolios`](docs/registries/beam.synthetic.portfolios.mdx): named sets of
-  blueprints, keyed by id.
+  blueprints, keyed by id; it also reads the portfolios stored at runtime.
 - [`beam.synthetic.materializers`](docs/registries/beam.synthetic.materializers.mdx): the host's own
   materialization steps, keyed by name.
 
-It registers into none.
+It registers into one: `beam.install.steps`, beam's install manifest, so `splicewire:beam:install`
+publishes and runs the stored-portfolio migration (`beam-synthetic-migrations`).
 
 ## Testing
 

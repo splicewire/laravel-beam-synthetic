@@ -3,6 +3,7 @@
 namespace Splicewire\Beam\Synthetic\Concerns;
 
 use Rushing\Popcorn\Concerns\Chained;
+use Splicewire\Beam\Install\BeamInstallManifest;
 use Splicewire\Beam\Synthetic\BeamSyntheticServiceProvider;
 use Splicewire\Beam\Synthetic\Blueprints\BlueprintRegistry;
 use Splicewire\Beam\Synthetic\Blueprints\DirectoryRegistrar;
@@ -11,6 +12,7 @@ use Splicewire\Beam\Synthetic\Curve\CurveKernel;
 use Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData;
 use Splicewire\Beam\Synthetic\Data\SyntheticTenantBlueprintData;
 use Splicewire\Beam\Synthetic\ScenarioExpander;
+use Splicewire\Beam\Synthetic\Store\StoredPortfolios;
 
 /**
  * One concern of {@see BeamSyntheticServiceProvider}: the curve kernel, the expander, and the
@@ -22,6 +24,10 @@ use Splicewire\Beam\Synthetic\ScenarioExpander;
  *
  * Each registry's {@see DirectoryRegistrar} is attached inside its singleton factory, so the config
  * is read and the files parsed on first resolve, not at every boot of a host that never synthesizes.
+ *
+ * {@see StoredPortfolios} (the portfolios a host saved at runtime) is SCOPED, not a singleton: it memoizes the rows it
+ * read, and a long-lived worker must read a portfolio saved by another request on its next request. The registry
+ * resolves it per call, so a singleton registry never holds a stale store.
  */
 trait WiresBlueprints
 {
@@ -54,6 +60,27 @@ trait WiresBlueprints
 
             return $registry;
         });
+
+        $this->app->scoped(StoredPortfolios::class);
+    }
+
+    /**
+     * Self-register into beam's install manifest, so `splicewire:beam:install` publishes the stored-portfolio
+     * migration (`beam-synthetic-migrations`, package-tools' tag for `hasMigrations()`) and migrates it with the rest
+     * of the stack: the beam-commerce shape. Guarded on the manifest being bound, a fact about the host's beam.
+     */
+    #[Chained('boot', order: 100)]
+    protected function bootPortfolioStoreInstall(): void
+    {
+        if (! $this->app->bound(BeamInstallManifest::class)) {
+            return;
+        }
+
+        $this->app->make(BeamInstallManifest::class)->register(
+            package: 'splicewire/laravel-beam-synthetic',
+            publishTags: ['beam-synthetic-migrations'],
+            migrates: true,
+        );
     }
 
     /**

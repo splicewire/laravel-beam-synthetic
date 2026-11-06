@@ -38,6 +38,10 @@ class BeamSyntheticServiceProvider extends PackageServiceProvider implements Cha
         $package
             ->name('laravel-beam-synthetic')
             ->hasConfigFile(['beam/synthetic'])
+            // Publish-only, the estate's stub-migration convention (beam-commerce's docblock): the `.stub` is never
+            // loaded in place; `vendor:publish --tag=beam-synthetic-migrations` or `splicewire:beam:install` stamps it
+            // into the host, which runs it on its central connection.
+            ->hasMigrations(['create_beam_synthetic_portfolios_table'])
             ->hasCommands([
                 MaterializeCommand::class,
                 ProjectCommand::class,
