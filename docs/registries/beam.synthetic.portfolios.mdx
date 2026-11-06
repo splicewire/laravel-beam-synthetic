@@ -51,8 +51,13 @@ expansionRate: 0.01
 ```
 
 `count` defaults to 1 and `startOffsetMonths` to 0. `churnRate` and `expansionRate` are optional
-monthly fractions from 0 to 1 that a projection applies on top of each member's curve; leave them out
-and the portfolio states none.
+monthly fractions from 0 to 1. They are not applied to the members' curves: a scenario replays the
+curves as they are. They are rates a projection can borrow. When the exec board's Projection lens
+names a portfolio (`projection:<id>`), the rates it states win over the host's configured ones while
+the live baseline is run forward. Leave them out and the portfolio states none.
+
+A portfolio is read by `synthetic:materialize --portfolio=<id>` and `synthetic:project
+--portfolio=<id>`, and by the exec board's Scenario lens (`scenario:<id>`), which holds it in memory.
 
 ## What is checked, and where
 
