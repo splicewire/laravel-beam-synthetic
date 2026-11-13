@@ -2,18 +2,33 @@
 
 namespace Splicewire\Beam\Synthetic\Store;
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Config\Repository as Config;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
+use Splicewire\Beam\Models\BeamParticle;
 use Splicewire\Beam\Models\CentralActivityLog;
+use Splicewire\Beam\Particle\Attributes\AttributedParticleDiscovery;
+use Splicewire\Beam\Particle\Backing\CentralParticleBacking;
+use Splicewire\Beam\Realm\Contracts\TenancyContext;
 use Splicewire\Beam\Synthetic\Blueprints\BlueprintRegistry;
 use Splicewire\Beam\Synthetic\Blueprints\PortfolioRegistry;
 use Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData;
+use Splicewire\Beam\Synthetic\Data\StoredPortfolioData;
+use Splicewire\Beam\Synthetic\Data\StoredPortfolioInputData;
+use Splicewire\Beam\Write\GateWriteGate;
+use Splicewire\Beam\Write\ParticleWriter;
+use Splicewire\Beam\Write\PolicyWriteGate;
 use Throwable;
 
 /**
- * The portfolios a host saved at runtime: the central `beam_synthetic_portfolios` table, read by
+ * The portfolios a host saved at runtime: central Data-declared particles, read by
  * {@see PortfolioRegistry} beside the portfolio files and written by the exec board's scenario builder (or any
  * caller of {@see save()}).
  *
@@ -33,8 +48,8 @@ use Throwable;
  * ## Cost
  *
  * Bound scoped: the first read in a request (or command) issues two central queries, whether the table exists and
- * its rows, and every later read in that scope is answered from memory. A host that has not run the migration, or
- * has no `central` connection, reads no stored portfolios rather than failing; `beam.synthetic.portfolio_store` false turns the store off entirely
+ * its rows, and every later read in that scope is answered from memory. A host without the shared particle table or
+ * a storage-capable Beam context, reads no stored portfolios rather than failing; `beam.synthetic.portfolio_store` false turns the store off entirely
  * (no query at all). Every save and delete is written to the central activity trail (`log_name`
  * `synthetic-portfolios`).
  */
@@ -72,8 +87,11 @@ final class StoredPortfolios
         }
 
         if ($this->available === null) {
-            $model = new StoredPortfolio;
-            $connection = (string) $model->getConnectionName();
+            if (! app()->bound(TenancyContext::class)) {
+                return $this->available = false;
+            }
+            $model = $this->centralParticle();
+            $connection = $model->getConnectionName() ?? $this->config->get('database.default');
 
             // A host with no `central` connection (no database at all, as in a projection-only run) keeps none.
             $this->available = is_array($this->config->get("database.connections.{$connection}"))
@@ -147,25 +165,31 @@ final class StoredPortfolios
     {
         $this->guard();
 
+        $portfolio = ScenarioPortfolioData::from($portfolio->toArray());
         if (($why = $this->refusal($portfolio)) !== null) {
             throw new InvalidArgumentException($why);
         }
 
-        $existing = StoredPortfolio::query()->find($portfolio->id);
-        $before = $existing?->definition;
-
-        StoredPortfolio::query()->updateOrCreate(['id' => $portfolio->id], [
-            'label' => $portfolio->label,
-            'definition' => $portfolio->toArray(),
-            'saved_by_type' => $causer?->getMorphClass(),
-            'saved_by_id' => $causer !== null ? (string) $causer->getKey() : null,
-        ]);
-
-        $this->log($existing === null ? 'created' : 'updated', $portfolio->id, $causer, [
-            'before' => $before,
-            'after' => $portfolio->toArray(),
-        ]);
-
+        $actor = $this->actor($causer);
+        $backing = $this->backing($actor);
+        Cache::lock($this->lockKey($portfolio->id), 30)->block(10, function () use ($backing, $portfolio, $actor): void {
+            $this->centralParticle()->getConnection()->transaction(function () use ($backing, $portfolio, $actor): void {
+                $existing = $backing->query([])->where('payload->scenarioKey', $portfolio->id)->first();
+                $before = $existing?->payload['portfolio'] ?? null;
+                $model = $existing ?? $backing->newRecord()->model();
+                $meta = $model->meta ?? [];
+                $meta['saved_by'] = ['type' => $actor->getMorphClass(), 'id' => (string) $actor->getKey()];
+                $model->meta = $meta;
+                $gate = app(ParticleWriter::class)->gate();
+                if (get_class($gate) === GateWriteGate::class) {
+                    $gate = new PolicyWriteGate(Gate::getFacadeRoot(), StoredPortfolioData::WRITE_ABILITY);
+                }
+                $written = $backing->writer($gate)->write($model, (new StoredPortfolioInputData($portfolio->id, $portfolio))->toArray(), $actor);
+                $this->log($existing === null ? 'created' : 'updated', $portfolio->id, $actor, [
+                    'before' => $before, 'after' => $portfolio->toArray(),
+                ], (string) $written->getKey());
+            });
+        });
         $this->rows = null;
 
         return $portfolio;
@@ -179,18 +203,68 @@ final class StoredPortfolios
     {
         $this->guard();
 
-        $row = StoredPortfolio::query()->find($id);
+        $actor = $this->actor($causer);
+        $backing = $this->backing($actor);
 
-        if ($row === null) {
-            return false;
+        return Cache::lock($this->lockKey($id), 30)->block(10, function () use ($backing, $id, $actor): bool {
+            return $this->centralParticle()->getConnection()->transaction(function () use ($backing, $id, $actor): bool {
+                $row = $backing->query([])->where('payload->scenarioKey', $id)->first();
+                if ($row === null) {
+                    return false;
+                }
+                // The existing owned-resource delete seam is scoped lookup + explicit ability + delete.
+                Gate::forUser($actor)->authorize(StoredPortfolioData::WRITE_ABILITY, $row);
+                $before = $row->payload['portfolio'];
+                $particleId = (string) $row->getKey();
+                $row->delete();
+                $this->log('deleted', $id, $actor, ['before' => $before], $particleId);
+                $this->rows = null;
+
+                return true;
+            });
+        });
+    }
+
+    /** PROVISIONAL pending d62cb04e: internal registry reads preserve viewer and CLI access. */
+    private function trustedQuery(): Builder
+    {
+        return $this->centralParticle()->newQuery()
+            ->where('schema_ref', StoredPortfolioData::class)->where('source_tier', 'local')
+            ->where('meta->owner->type', 'central')->where('meta->owner->id', 'host');
+    }
+
+    private function centralParticle(): BeamParticle
+    {
+        $context = app(TenancyContext::class);
+        if ($context->isActive() && $context->centralConnection() === null) {
+            throw new \LogicException('Central portfolio storage requires a central connection while a tenant is initialized.');
         }
 
-        $before = $row->definition;
-        $row->delete();
-        $this->log('deleted', $id, $causer, ['before' => $before]);
-        $this->rows = null;
+        return (new BeamParticle)->setConnection($context->centralConnection());
+    }
 
-        return true;
+    private function actor(?Model $causer): Model&Authenticatable
+    {
+        $actor = $causer ?? auth()->user();
+        if (! $actor instanceof Model || ! $actor instanceof Authenticatable) {
+            throw new AuthorizationException('Stored portfolio mutations require an authenticated actor.');
+        }
+
+        return $actor;
+    }
+
+    private function backing(Authenticatable $actor): CentralParticleBacking
+    {
+        $resource = AttributedParticleDiscovery::resourceFromAttribute(StoredPortfolioData::class);
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $actor);
+
+        return $resource->backing($request);
+    }
+
+    private function lockKey(string $key): string
+    {
+        return 'beam.synthetic.portfolio:'.hash('sha256', ($this->centralParticle()->getConnectionName() ?? $this->config->get('database.default')).'|'.$key);
     }
 
     /** @return array<string, ScenarioPortfolioData|string> */
@@ -206,13 +280,17 @@ final class StoredPortfolios
 
         $rows = [];
 
-        foreach (StoredPortfolio::query()->orderBy('created_at')->orderBy('id')->get() as $row) {
+        foreach ($this->trustedQuery()->orderBy('created_at')->orderBy('id')->get() as $row) {
+            $id = (string) ($row->payload['scenarioKey'] ?? '');
             try {
-                $portfolio = ScenarioPortfolioData::from([...(array) $row->definition, 'id' => $row->id]);
+                if (strlen($id) > self::ID_MAX || preg_match(self::ID_PATTERN, $id) !== 1) {
+                    throw new InvalidArgumentException('The stored scenario key must be kebab-case.');
+                }
+                $portfolio = ScenarioPortfolioData::from([...(array) ($row->payload['portfolio'] ?? []), 'id' => $id]);
                 $missing = $this->blueprints->missingFrom($portfolio);
-                $rows[$row->id] = $missing === [] ? $portfolio : 'names blueprints this host does not declare: '.implode(', ', $missing);
+                $rows[$id] = $missing === [] ? $portfolio : 'names blueprints this host does not declare: '.implode(', ', $missing);
             } catch (Throwable $e) {
-                $rows[$row->id] = $e->getMessage();
+                $rows[$id] = $e->getMessage();
             }
         }
 
@@ -223,15 +301,15 @@ final class StoredPortfolios
     {
         if (! $this->available()) {
             throw new InvalidArgumentException($this->enabled()
-                ? 'Stored portfolios need the beam_synthetic_portfolios table: publish this package\'s migrations (vendor:publish --tag=beam-synthetic-migrations, or splicewire:beam:install) and migrate.'
+                ? 'Stored portfolios need the central Beam particle table: install the existing Beam migrations and migrate.'
                 : 'This host keeps no stored portfolios (beam.synthetic.portfolio_store is false).');
         }
     }
 
     /** @param  array<string, mixed>  $properties */
-    private function log(string $event, string $id, ?Model $causer, array $properties): void
+    private function log(string $event, string $id, Model $causer, array $properties, string $particleId): void
     {
-        CentralActivityLog::create([
+        CentralActivityLog::on($this->centralParticle()->getConnectionName())->create([
             'log_name' => self::LOG_NAME,
             'description' => match ($event) {
                 'created' => "Scenario portfolio '{$id}' saved",
@@ -239,11 +317,11 @@ final class StoredPortfolios
                 default => "Scenario portfolio '{$id}' deleted",
             },
             'event' => $event,
-            'subject_type' => (new StoredPortfolio)->getMorphClass(),
-            'subject_id' => $id,
+            'subject_type' => (new BeamParticle)->getMorphClass(),
+            'subject_id' => $particleId,
             'causer_type' => $causer?->getMorphClass(),
             'causer_id' => $causer !== null ? (string) $causer->getKey() : null,
-            'properties' => $properties,
+            'properties' => ['scenario_key' => $id, ...$properties],
         ]);
     }
 }

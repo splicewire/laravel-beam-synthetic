@@ -63,9 +63,16 @@ the live baseline is run forward. Leave them out and the portfolio states none.
 
 ### Stored at runtime
 
-A host can also save portfolios while it runs. They live in the central `beam_synthetic_portfolios`
-table, which this package's migration creates (`vendor:publish --tag=beam-synthetic-migrations`, or
-`splicewire:beam:install`), and they are written through `StoredPortfolios`. The exec board's
+A host can save portfolios as central Data-declared particles in Beam's existing shared store,
+written through `StoredPortfolios`. The chosen scenario key is payload; the particle UUID is
+server-managed. Replacements and deletion stay by scenario key. The dedicated table/stub are withdrawn.
+
+**PROVISIONAL pending root d62cb04e:** mutations require `synthetic.portfolios.manage` via the
+backing pipeline; trusted registry reads retain viewer/CLI behavior. No generic CRUD is mounted.
+Exec maps the ability to its existing two entitlements. Published-table hosts follow
+`docs/stored-portfolio-migration.md` before retiring any data.
+
+The exec board's
 Scenarios panel is the usual writer: a board member composes a portfolio from the host's blueprints,
 previews it, and saves it under an id.
 

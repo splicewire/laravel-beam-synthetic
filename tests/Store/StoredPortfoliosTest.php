@@ -2,12 +2,14 @@
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+use Splicewire\Beam\Models\BeamParticle;
 use Splicewire\Beam\Models\CentralActivityLog;
 use Splicewire\Beam\Synthetic\Blueprints\PortfolioRegistry;
 use Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData;
-use Splicewire\Beam\Synthetic\Store\StoredPortfolio;
+use Splicewire\Beam\Synthetic\Data\StoredPortfolioData;
 use Splicewire\Beam\Synthetic\Store\StoredPortfolios;
 use Splicewire\Beam\Synthetic\Tests\Support\SyntheticHost;
 use Splicewire\Beam\Synthetic\Tests\Support\SyntheticSeatUser;
@@ -19,7 +21,19 @@ uses(SyntheticHost::class);
  * Demo portfolio file, which ids are refused, and the central activity trail.
  */
 beforeEach(function () {
-    (require dirname(__DIR__, 2).'/database/migrations/create_beam_synthetic_portfolios_table.php.stub')->up();
+    Schema::create('beam_particles', function (Blueprint $table): void {
+        $table->uuid('id')->primary();
+        $table->string('schema_ref')->nullable();
+        $table->string('schema_id')->nullable();
+        $table->string('migration_status')->nullable();
+        $table->string('head_version')->nullable();
+        $table->string('source_tier')->default('local');
+        $table->json('payload');
+        $table->json('meta')->nullable();
+        $table->timestamps();
+    });
+    Gate::define(StoredPortfolioData::WRITE_ABILITY, fn () => true);
+    $this->actingAs(SyntheticSeatUser::create(['name' => 'Manager', 'email' => 'manager@example.test', 'password' => 'x']));
 
     Schema::create('activity_log', function (Blueprint $t): void {
         $t->id();
@@ -36,6 +50,16 @@ beforeEach(function () {
         $t->timestamps();
     });
 });
+
+/** Corrupt/legacy-key fixtures bypass the writer to test defensive read behavior. */
+function storedParticleFixture(array $row): BeamParticle
+{
+    return BeamParticle::create([
+        'schema_ref' => StoredPortfolioData::class,
+        'payload' => ['scenarioKey' => $row['id'], 'portfolio' => $row['definition']],
+        'meta' => ['owner' => ['type' => 'central', 'id' => 'host']],
+    ]);
+}
 
 /** A fresh request scope: the store is scoped and memoizes its rows. */
 function nextScope(): StoredPortfolios
@@ -73,7 +97,7 @@ it('saves a portfolio that PortfolioRegistry then reads after the declared ones,
         ->and($registry->isStored('board-upside'))->toBeTrue()
         ->and($registry->isStored('demo-mixed-book'))->toBeFalse()
         ->and(array_keys($registry->declared()))->toBe(['demo-mixed-book'])
-        ->and(StoredPortfolio::query()->find('board-upside')->saved_by_id)->toBe((string) $user->getKey());
+        ->and(BeamParticle::query()->sole()->meta['saved_by']['id'])->toBe((string) $user->getKey());
 });
 
 it('logs every save and delete to the central activity trail, with who and what', function () {
@@ -88,7 +112,7 @@ it('logs every save and delete to the central activity trail, with who and what'
     $log = CentralActivityLog::query()->where('log_name', StoredPortfolios::LOG_NAME)->orderBy('id')->get();
 
     expect($log->pluck('event')->all())->toBe(['created', 'updated', 'deleted'])
-        ->and($log->pluck('subject_id')->unique()->all())->toBe(['board-upside'])
+        ->and($log->pluck('properties')->map(fn ($p) => $p['scenario_key'])->unique()->all())->toBe(['board-upside'])
         ->and($log->pluck('causer_id')->unique()->all())->toBe([(string) $user->getKey()])
         ->and($log[1]->properties['before']['label'])->toBe('Board upside')
         ->and($log[1]->properties['after']['label'])->toBe('Board upside, revised')
@@ -97,7 +121,7 @@ it('logs every save and delete to the central activity trail, with who and what'
 
 it('refuses a declared id, a blueprint the host lacks and an id that is not kebab-case, writing nothing', function (ScenarioPortfolioData $portfolio, string $why) {
     expect(fn () => app(StoredPortfolios::class)->save($portfolio))->toThrow(InvalidArgumentException::class, $why)
-        ->and(StoredPortfolio::query()->count())->toBe(0)
+        ->and(BeamParticle::query()->count())->toBe(0)
         ->and(CentralActivityLog::query()->count())->toBe(0);
 })->with([
     'the Demo file\'s id' => fn () => [draft('demo-mixed-book'), 'is declared by the host'],
@@ -108,7 +132,7 @@ it('refuses a declared id, a blueprint the host lacks and an id that is not keba
 
 it('lets a declared portfolio win over a stored row under the same id, and names the shadowed row', function () {
     // A row written before a file came to declare its id (inserted directly: save() refuses it).
-    StoredPortfolio::query()->create(['id' => 'demo-mixed-book', 'label' => 'Stale copy', 'definition' => draft('demo-mixed-book')->toArray()]);
+    storedParticleFixture(['id' => 'demo-mixed-book', 'label' => 'Stale copy', 'definition' => draft('demo-mixed-book')->toArray()]);
 
     $store = nextScope();
     $registry = app(PortfolioRegistry::class);
@@ -120,11 +144,11 @@ it('lets a declared portfolio win over a stored row under the same id, and names
 });
 
 it('validates a row again when it is read: one that no longer validates is left out and reported', function () {
-    StoredPortfolio::query()->create(['id' => 'orphaned', 'label' => 'Orphaned', 'definition' => [
+    storedParticleFixture(['id' => 'orphaned', 'label' => 'Orphaned', 'definition' => [
         'label' => 'Orphaned', 'members' => [['blueprint' => 'a-removed-blueprint', 'count' => 1]],
     ]]);
-    StoredPortfolio::query()->create(['id' => 'broken', 'label' => 'Broken', 'definition' => ['label' => 'Broken', 'members' => []]]);
-    StoredPortfolio::query()->create(['id' => 'fine', 'label' => 'Fine', 'definition' => draft('fine')->toArray()]);
+    storedParticleFixture(['id' => 'broken', 'label' => 'Broken', 'definition' => ['label' => 'Broken', 'members' => []]]);
+    storedParticleFixture(['id' => 'fine', 'label' => 'Fine', 'definition' => draft('fine')->toArray()]);
 
     $store = nextScope();
 
@@ -172,19 +196,20 @@ it('is off, with no query at all, when the host keeps no stored portfolios', fun
 });
 
 it('reads no stored portfolios, rather than failing, on a host that has not migrated the table', function () {
-    Schema::drop('beam_synthetic_portfolios');
+    Schema::drop('beam_particles');
     $store = nextScope();
 
     expect($store->available())->toBeFalse()
         ->and(app(PortfolioRegistry::class)->get('board-upside'))->toBeNull()
         ->and(array_keys(app(PortfolioRegistry::class)->all()))->toBe(['demo-mixed-book'])
-        ->and(fn () => $store->save(draft()))->toThrow(InvalidArgumentException::class, 'beam-synthetic-migrations');
+        ->and(fn () => $store->save(draft()))->toThrow(InvalidArgumentException::class, 'Beam migrations');
 });
 
-it('publishes its migration stub under the package-tools tag splicewire:beam:install publishes', function () {
+it('withdraws the dedicated migration stub and publication tag', function () {
     $published = collect(ServiceProvider::pathsToPublish(null, 'beam-synthetic-migrations'))->keys()->map(fn (string $p): string => basename($p))->all();
 
-    expect($published)->toContain('create_beam_synthetic_portfolios_table.php.stub');
+    expect($published)->toBe([]);
+    expect(is_file(dirname(__DIR__, 2).'/database/migrations/create_beam_synthetic_portfolios_table.php.stub'))->toBeFalse();
 });
 
 it('answers an id that cannot be a registry key as no portfolio, rather than throwing', function () {

@@ -3,13 +3,15 @@
 namespace Splicewire\Beam\Synthetic\Concerns;
 
 use Rushing\Popcorn\Concerns\Chained;
-use Splicewire\Beam\Install\BeamInstallManifest;
+use Splicewire\Beam\Particle\Attributes\AttributedParticleDiscovery;
+use Splicewire\Beam\Particle\ParticleResourceRegistry;
 use Splicewire\Beam\Synthetic\BeamSyntheticServiceProvider;
 use Splicewire\Beam\Synthetic\Blueprints\BlueprintRegistry;
 use Splicewire\Beam\Synthetic\Blueprints\DirectoryRegistrar;
 use Splicewire\Beam\Synthetic\Blueprints\PortfolioRegistry;
 use Splicewire\Beam\Synthetic\Curve\CurveKernel;
 use Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData;
+use Splicewire\Beam\Synthetic\Data\StoredPortfolioData;
 use Splicewire\Beam\Synthetic\Data\SyntheticTenantBlueprintData;
 use Splicewire\Beam\Synthetic\ScenarioExpander;
 use Splicewire\Beam\Synthetic\Store\StoredPortfolios;
@@ -64,23 +66,14 @@ trait WiresBlueprints
         $this->app->scoped(StoredPortfolios::class);
     }
 
-    /**
-     * Self-register into beam's install manifest, so `splicewire:beam:install` publishes the stored-portfolio
-     * migration (`beam-synthetic-migrations`, package-tools' tag for `hasMigrations()`) and migrates it with the rest
-     * of the stack: the beam-commerce shape. Guarded on the manifest being bound, a fact about the host's beam.
-     */
+    /** Declare the storage shape at boot, including on cached-route hosts; no routes are mounted. */
     #[Chained('boot', order: 100)]
-    protected function bootPortfolioStoreInstall(): void
+    protected function bootPortfolioParticle(): void
     {
-        if (! $this->app->bound(BeamInstallManifest::class)) {
-            return;
+        if ($this->app->bound(ParticleResourceRegistry::class)) {
+            $this->app->make(AttributedParticleDiscovery::class)
+                ->registerClass(StoredPortfolioData::class);
         }
-
-        $this->app->make(BeamInstallManifest::class)->register(
-            package: 'splicewire/laravel-beam-synthetic',
-            publishTags: ['beam-synthetic-migrations'],
-            migrates: true,
-        );
     }
 
     /**

@@ -48,3 +48,24 @@ long-lived worker keeps between requests, so runtime rows cannot simply be regis
 - `synthetic:project` stays zero-query for declared ids; naming a stored id reads the store (two queries) before the
   projection, which itself still reads nothing.
 - The exec board's scenario builder (exec-board 24) is the first writer; `exec.scenario.manage` gates it there.
+
+
+## Owner-review 18 amendment — PROVISIONAL pending root d62cb04e
+
+Decision 1's dedicated model/table and publishable stub are withdrawn. StoredPortfolioData declares
+CentralParticleBacking with explicit input Data and write ability synthetic.portfolios.manage.
+The particle UUID is server-managed; scenarioKey in payload remains ScenarioPortfolioData.id in
+board/lens contracts. Declared keys still refuse saves and shadow old stored rows. Reads revalidate.
+
+Writes use the canonical backing pipeline; deletion uses its scoped lookup plus explicit ability,
+as the existing owned-resource delete seam does. Exec supplies its existing two-entitlement default,
+without a synthetic-to-exec import. Trusted internal reads are scoped to this schema, local tier and
+central-host ownership and preserve viewer/CLI access. No generic CRUD route is mounted.
+This policy seam is PROVISIONAL per coord04:29/04:36, pending root d62cb04e; nothing lands without root.
+
+Save/delete and central activity audit are transactional, with a cache lock per connection/key.
+Multiple workers require a shared lock-capable cache. Audit subjects identify the actual
+beam_particle UUID and preserve scenario_key in properties. Legacy historical saver/timestamp facts
+remain in the lossless export/move receipt, never relabeled as the importing actor.
+Commerce-starter and market-starter published the retired stub; follow docs/stored-portfolio-migration.md.
+No host migration or live data is changed by this candidate.

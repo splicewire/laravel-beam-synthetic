@@ -17,7 +17,7 @@ What ships now:
 - **Two registries** of blueprints and portfolios, filled from directories the host declares, with
   three generic Demo blueprints and a Demo portfolio by default.
 - **Stored portfolios** (`Store\StoredPortfolios`): portfolios a host saves at runtime, in the central
-  `beam_synthetic_portfolios` table, read by the portfolio registry after the files. The exec board's
+  shared `beam_particles` table, read by the portfolio registry after the files. The exec board's
   scenario builder writes them.
 
 - **The materializer** (`SyntheticTenantMaterializer`) and three commands: `synthetic:materialize`
@@ -40,19 +40,23 @@ auto-discovered. To override config, publish `config/beam/synthetic.php`:
 php artisan vendor:publish --tag=beam-synthetic-config
 ```
 
-To store portfolios at runtime, publish and run the migration (`splicewire:beam:install` does both):
+Runtime portfolios use the existing central Beam particle store and its migrations. This package
+publishes no portfolio migration; existing-table hosts follow [the lossless move](docs/stored-portfolio-migration.md).
 
-```bash
-php artisan vendor:publish --tag=beam-synthetic-migrations
-php artisan migrate
-```
+**PROVISIONAL pending root d62cb04e (owner-review 18):** writes require
+`synthetic.portfolios.manage` through `CentralParticleBacking` and the canonical pipeline.
+Exec maps it to existing `exec.view` AND `exec.scenario.manage` entitlements; standalone hosts
+must define the ability explicitly. Trusted internal reads preserve viewer/CLI behavior.
+No generic CRUD is mounted. The chosen scenario key is payload, distinct from the particle UUID;
+replacement and deletion stay by that key. Mutations use a cache lock per central connection/key;
+multi-worker hosts must configure a shared lock-capable cache.
 
 | key | default | what it does |
 |---|---|---|
 | `beam.synthetic.usage_meter` | `openai.tokens` | The meter a blueprint's usage cost is billed against when it names none. |
 | `beam.synthetic.blueprint_paths` | the Demo blueprints | Directories of blueprint files. Declaring your own list replaces the default. |
 | `beam.synthetic.portfolio_paths` | the Demo portfolio | Directories of portfolio files. |
-| `beam.synthetic.portfolio_store` | `true` | Also read portfolios stored at runtime (`beam_synthetic_portfolios`). `false` reads files only and never queries; a host without the table reads none. |
+| `beam.synthetic.portfolio_store` | `true` | Also read portfolios stored at runtime (central Data-declared particles). `false` reads files only and never queries; a host without the table reads none. |
 | `beam.synthetic.materializers` | `[]` | The host's own materialization steps, `name => class`. |
 | `beam.synthetic.usage_units_per_usd` | `1000` | Metered units per dollar of synthetic usage, when the host declares no unit cost for the meter. |
 | `beam.synthetic.provision_storage` | `true` | Provision a synthetic tenant's storage where the host declares no provisioning pipeline. |
@@ -198,8 +202,8 @@ This package declares three registries, each documented under `docs/registries/`
 - [`beam.synthetic.materializers`](docs/registries/beam.synthetic.materializers.mdx): the host's own
   materialization steps, keyed by name.
 
-It registers into one: `beam.install.steps`, beam's install manifest, so `splicewire:beam:install`
-publishes and runs the stored-portfolio migration (`beam-synthetic-migrations`).
+The dedicated model, migration stub, `beam-synthetic-migrations` publication and portfolio
+registration in `beam.install.steps` are withdrawn.
 
 ## Testing
 

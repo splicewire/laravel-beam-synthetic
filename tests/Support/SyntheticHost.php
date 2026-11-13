@@ -6,7 +6,15 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Rushing\Commerce\CommerceServiceProvider;
+use Rushing\DataNav\ServiceProvider;
+use Rushing\PermissionCascade\PermissionCascadeServiceProvider;
+use Rushing\Popcorn\Laravel\PopcornServiceProvider;
+use Rushing\Versioning\VersioningServiceProvider;
+use Schemastud\DataSchemas\LaravelDataSchemasServiceProvider;
+use Schemastud\JsonNs\Laravel\JsonNsServiceProvider;
+use Spatie\Activitylog\ActivitylogServiceProvider;
 use Spatie\LaravelData\LaravelDataServiceProvider;
+use Splicewire\Beam\BeamServiceProvider;
 use Splicewire\Beam\Commerce\Plan;
 use Splicewire\Beam\Synthetic\BeamSyntheticServiceProvider;
 use Splicewire\Beam\Tenancy\Tenant;
@@ -41,6 +49,15 @@ trait SyntheticHost
     protected function getPackageProviders($app): array
     {
         return [
+            BeamServiceProvider::class,
+            ActivitylogServiceProvider::class,
+            VersioningServiceProvider::class,
+            LaravelDataSchemasServiceProvider::class,
+            PermissionCascadeServiceProvider::class,
+            ServiceProvider::class,
+            JsonNsServiceProvider::class,
+            PopcornServiceProvider::class,
+            \Rushing\DataFilters\ServiceProvider::class,
             LaravelDataServiceProvider::class,
             TenancyServiceProvider::class,
             CommerceServiceProvider::class,
@@ -50,6 +67,8 @@ trait SyntheticHost
 
     protected function defineEnvironment($app): void
     {
+        $app['config']->set('cache.default', 'array');
+        $app['config']->set('data-schemas.base_uri', 'https://synthetic.example/schemas');
         $app['config']->set('database.default', 'central');
         $app['config']->set('database.connections.central', ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true]);
         $app['config']->set('database.connections.testing', $app['config']->get('database.connections.central'));

@@ -24,7 +24,7 @@ use Splicewire\Beam\Synthetic\Store\StoredPortfolios;
  *
  * The registry's own entries are the DECLARED portfolios: the files, and any a package or host registers in code.
  * {@see get()} and {@see all()} also read the portfolios a host saved at runtime ({@see StoredPortfolios}, the
- * central `beam_synthetic_portfolios` table), after the declared ones. A declared id always wins: a stored row
+ * central Data-declared particle store), after the declared ones. A declared id always wins: a stored row
  * under a declared id is never read, and saving one is refused. So a lookup of a declared id never touches the
  * database, and {@see declared()} and {@see declares()} never do; only a miss, or {@see all()}, asks the store.
  */
