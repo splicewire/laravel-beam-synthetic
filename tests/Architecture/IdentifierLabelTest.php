@@ -2,6 +2,9 @@
 
 use Schemastud\DataSchemas\Attributes\Title;
 use Splicewire\Beam\Synthetic\Data\PortfolioMemberData;
+use Splicewire\Beam\Synthetic\Data\ScenarioPortfolioData;
+use Splicewire\Beam\Synthetic\Data\StoredPortfolioData;
+use Splicewire\Beam\Synthetic\Data\StoredPortfolioInputData;
 
 /*
  * app-walkthrough APP-09 at the owner: a class this package puts on a particle wire declares its rendered label
@@ -12,7 +15,7 @@ use Splicewire\Beam\Synthetic\Data\PortfolioMemberData;
  */
 it('labels every class another package\'s operations carry on the wire', function () {
     $unlabeled = array_values(array_filter(
-        [PortfolioMemberData::class],
+        [PortfolioMemberData::class, ScenarioPortfolioData::class, StoredPortfolioData::class, StoredPortfolioInputData::class],
         fn (string $class): bool => (new ReflectionClass($class))->getAttributes(Title::class) === [],
     ));
 

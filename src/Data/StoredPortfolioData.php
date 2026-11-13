@@ -2,6 +2,7 @@
 
 namespace Splicewire\Beam\Synthetic\Data;
 
+use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\LaravelData\Data;
 use Splicewire\Beam\Particle\Attributes\ParticleResource;
 use Splicewire\Beam\Particle\Backing\CentralParticleBacking;
@@ -23,6 +24,7 @@ use Splicewire\Beam\Particle\Backing\SharedParticleAccess;
     editable: false,
     deletable: false,
 )]
+#[Title('Stored portfolio')]
 class StoredPortfolioData extends Data
 {
     public const WRITE_ABILITY = 'synthetic.portfolios.manage';

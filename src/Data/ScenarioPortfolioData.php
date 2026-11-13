@@ -3,6 +3,7 @@
 namespace Splicewire\Beam\Synthetic\Data;
 
 use InvalidArgumentException;
+use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Data\BeamData;
@@ -22,6 +23,7 @@ use Splicewire\Beam\Synthetic\Blueprints\BlueprintRegistry;
  * does not know which blueprints a host has.
  */
 #[TypeScript]
+#[Title('Scenario portfolio')]
 class ScenarioPortfolioData extends BeamData
 {
     /**
