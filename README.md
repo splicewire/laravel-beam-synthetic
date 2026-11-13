@@ -49,7 +49,7 @@ Exec maps it to existing `exec.view` AND `exec.scenario.manage` entitlements; st
 must define the ability explicitly. Trusted internal reads preserve viewer/CLI behavior.
 No generic CRUD is mounted. The chosen scenario key is payload, distinct from the particle UUID;
 replacement and deletion stay by that key. Mutations use a cache lock per central connection/key;
-multi-worker hosts must configure a shared lock-capable cache.
+multi-worker hosts must configure a lock-capable cache shared across tenant contexts too. Database-cache portfolio locks are pinned centrally. Duplicate keys are reported and saves refused; deliberate key deletion removes all matches.
 
 | key | default | what it does |
 |---|---|---|

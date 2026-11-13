@@ -3,6 +3,7 @@
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
@@ -20,17 +21,7 @@ use Splicewire\Beam\Write\WriteNotAuthorized;
 uses(SyntheticHost::class);
 
 beforeEach(function () {
-    Schema::create('beam_particles', function (Blueprint $table): void {
-        $table->uuid('id')->primary();
-        $table->string('schema_ref')->nullable();
-        $table->string('schema_id')->nullable();
-        $table->string('migration_status')->nullable();
-        $table->string('head_version')->nullable();
-        $table->string('source_tier')->default('local');
-        $table->json('payload');
-        $table->json('meta')->nullable();
-        $table->timestamps();
-    });
+    (require dirname(__DIR__, 2).'/vendor/splicewire/laravel-beam/database/migrations/shared/create_beam_particles_table.php.stub')->up();
     Schema::create('activity_log', function (Blueprint $t): void {
         $t->id();
         $t->string('log_name')->nullable();
@@ -114,6 +105,12 @@ it('uses central storage while a different tenant database is active and isolate
         }
     });
     $actor = SyntheticSeatUser::create(['name' => 'Ada', 'email' => 'ada@example.test', 'password' => 'x']);
+    Schema::connection('central')->create('cache_locks', function (Blueprint $table): void {
+        $table->string('key')->primary();
+        $table->string('owner');
+        $table->integer('expiration');
+    });
+    config(['cache.default' => 'database', 'cache.stores.database' => ['driver' => 'database', 'connection' => 'tenant', 'table' => 'cache', 'lock_connection' => 'tenant', 'lock_table' => 'cache_locks', 'lock_lottery' => [0, 100]]]);
     config(['database.default' => 'tenant']);
     $portfolio = ScenarioPortfolioData::from(['id' => 'central-board', 'label' => 'Central', 'members' => [['blueprint' => 'demo-quillmere-studio']]]);
     app(StoredPortfolios::class)->save($portfolio, $actor);
@@ -127,6 +124,7 @@ it('uses central storage while a different tenant database is active and isolate
     expect(array_keys(app(StoredPortfolios::class)->all()))->toBe(['central-board'])
         ->and(app(StoredPortfolios::class)->delete('central-board', $actor))->toBeTrue()
         ->and(BeamParticle::on('central')->count())->toBe(2);
+    expect(Cache::store()->getStore()->getLockConnection()->getName())->toBe('tenant');
     config(['database.default' => 'central']);
 });
 

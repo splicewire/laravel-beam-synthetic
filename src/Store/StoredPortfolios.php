@@ -3,7 +3,10 @@
 namespace Splicewire\Beam\Synthetic\Store;
 
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Cache\DatabaseStore;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -49,7 +52,7 @@ use Throwable;
  *
  * Bound scoped: the first read in a request (or command) issues two central queries, whether the table exists and
  * its rows, and every later read in that scope is answered from memory. A host without the shared particle table or
- * a storage-capable Beam context, reads no stored portfolios rather than failing; `beam.synthetic.portfolio_store` false turns the store off entirely
+ * a storage-capable Beam context reads no stored portfolios rather than failing; `beam.synthetic.portfolio_store` false turns the store off entirely
  * (no query at all). Every save and delete is written to the central activity trail (`log_name`
  * `synthetic-portfolios`).
  */
@@ -159,6 +162,7 @@ final class StoredPortfolios
     /**
      * Store `$portfolio` under its id, replacing a stored one with that id. Logged centrally.
      *
+     * @throws AuthorizationException when no authenticated Model actor or declared ability admits the write.
      * @throws InvalidArgumentException when {@see refusal()} names a reason, or the store is not available
      */
     public function save(ScenarioPortfolioData $portfolio, ?Model $causer = null): ScenarioPortfolioData
@@ -172,9 +176,13 @@ final class StoredPortfolios
 
         $actor = $this->actor($causer);
         $backing = $this->backing($actor);
-        Cache::lock($this->lockKey($portfolio->id), 30)->block(10, function () use ($backing, $portfolio, $actor): void {
+        $this->lock($portfolio->id)->block(10, function () use ($backing, $portfolio, $actor): void {
             $this->centralParticle()->getConnection()->transaction(function () use ($backing, $portfolio, $actor): void {
-                $existing = $backing->query([])->where('payload->scenarioKey', $portfolio->id)->first();
+                $matches = $backing->query([])->where('payload->scenarioKey', $portfolio->id)->orderBy('created_at')->orderBy('id')->limit(2)->get();
+                if ($matches->count() > 1) {
+                    throw new InvalidArgumentException("Scenario '{$portfolio->id}' has multiple stored particles; reconcile or delete the key before saving.");
+                }
+                $existing = $matches->first();
                 $before = $existing?->payload['portfolio'] ?? null;
                 $model = $existing ?? $backing->newRecord()->model();
                 $meta = $model->meta ?? [];
@@ -198,6 +206,8 @@ final class StoredPortfolios
     /**
      * Delete the stored portfolio `$id`. False when there is none (a declared portfolio is never deleted here).
      * Logged centrally when a row went.
+     *
+     * @throws AuthorizationException when no authenticated Model actor or declared ability admits deletion.
      */
     public function delete(string $id, ?Model $causer = null): bool
     {
@@ -206,18 +216,20 @@ final class StoredPortfolios
         $actor = $this->actor($causer);
         $backing = $this->backing($actor);
 
-        return Cache::lock($this->lockKey($id), 30)->block(10, function () use ($backing, $id, $actor): bool {
+        return $this->lock($id)->block(10, function () use ($backing, $id, $actor): bool {
             return $this->centralParticle()->getConnection()->transaction(function () use ($backing, $id, $actor): bool {
-                $row = $backing->query([])->where('payload->scenarioKey', $id)->first();
-                if ($row === null) {
+                $matches = $backing->query([])->where('payload->scenarioKey', $id)->orderBy('created_at')->orderBy('id')->get();
+                if ($matches->isEmpty()) {
                     return false;
                 }
-                // The existing owned-resource delete seam is scoped lookup + explicit ability + delete.
-                Gate::forUser($actor)->authorize(StoredPortfolioData::WRITE_ABILITY, $row);
-                $before = $row->payload['portfolio'];
-                $particleId = (string) $row->getKey();
-                $row->delete();
-                $this->log('deleted', $id, $actor, ['before' => $before], $particleId);
+                foreach ($matches as $row) {
+                    // Same ability-checked deletion seam as the existing owned-resource controller.
+                    Gate::forUser($actor)->authorize(StoredPortfolioData::WRITE_ABILITY, $row);
+                    $before = $row->payload['portfolio'] ?? null;
+                    $particleId = (string) $row->getKey();
+                    $row->delete();
+                    $this->log('deleted', $id, $actor, ['before' => $before], $particleId);
+                }
                 $this->rows = null;
 
                 return true;
@@ -262,6 +274,21 @@ final class StoredPortfolios
         return $resource->backing($request);
     }
 
+    private function lock(string $key): Lock
+    {
+        $store = Cache::store()->getStore();
+        if (! $store instanceof LockProvider) {
+            throw new \LogicException('Stored portfolio mutations require a shared lock-capable cache.');
+        }
+        if ($store instanceof DatabaseStore) {
+            // The central key must not acquire a tenant-local database lock. Leave other cache users alone.
+            $store = clone $store;
+            $store->setLockConnection($this->centralParticle()->getConnection());
+        }
+
+        return $store->lock($this->lockKey($key), 30);
+    }
+
     private function lockKey(string $key): string
     {
         return 'beam.synthetic.portfolio:'.hash('sha256', ($this->centralParticle()->getConnectionName() ?? $this->config->get('database.default')).'|'.$key);
@@ -282,6 +309,11 @@ final class StoredPortfolios
 
         foreach ($this->trustedQuery()->orderBy('created_at')->orderBy('id')->get() as $row) {
             $id = (string) ($row->payload['scenarioKey'] ?? '');
+            if (array_key_exists($id, $rows)) {
+                $rows[$id] = 'has multiple stored particles; reconcile or delete the key';
+
+                continue;
+            }
             try {
                 if (strlen($id) > self::ID_MAX || preg_match(self::ID_PATTERN, $id) !== 1) {
                     throw new InvalidArgumentException('The stored scenario key must be kebab-case.');

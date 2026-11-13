@@ -21,17 +21,7 @@ uses(SyntheticHost::class);
  * Demo portfolio file, which ids are refused, and the central activity trail.
  */
 beforeEach(function () {
-    Schema::create('beam_particles', function (Blueprint $table): void {
-        $table->uuid('id')->primary();
-        $table->string('schema_ref')->nullable();
-        $table->string('schema_id')->nullable();
-        $table->string('migration_status')->nullable();
-        $table->string('head_version')->nullable();
-        $table->string('source_tier')->default('local');
-        $table->json('payload');
-        $table->json('meta')->nullable();
-        $table->timestamps();
-    });
+    (require dirname(__DIR__, 2).'/vendor/splicewire/laravel-beam/database/migrations/shared/create_beam_particles_table.php.stub')->up();
     Gate::define(StoredPortfolioData::WRITE_ABILITY, fn () => true);
     $this->actingAs(SyntheticSeatUser::create(['name' => 'Manager', 'email' => 'manager@example.test', 'password' => 'x']));
 
@@ -219,4 +209,21 @@ it('answers an id that cannot be a registry key as no portfolio, rather than thr
         ->and($registry->get('scenario:x/y'))->toBeNull()
         ->and($registry->declares('Board-Upside'))->toBeFalse()
         ->and($registry->isStored('Board-Upside'))->toBeFalse();
+});
+
+it('reports duplicated scenario keys and removes all matching particles on explicit key deletion', function () {
+    storedParticleFixture(['id' => 'duplicate', 'definition' => draft('duplicate')->toArray()]);
+    storedParticleFixture(['id' => 'duplicate', 'definition' => draft('duplicate', ['label' => 'Different'])->toArray()]);
+    $store = nextScope();
+    expect($store->find('duplicate'))->toBeNull()
+        ->and($store->invalid()['duplicate'])->toContain('multiple stored particles')
+        ->and(fn () => $store->save(draft('duplicate')))->toThrow(InvalidArgumentException::class, 'multiple stored particles')
+        ->and($store->delete('duplicate'))->toBeTrue()
+        ->and($store->find('duplicate'))->toBeNull()
+        ->and(BeamParticle::query()->count())->toBe(0);
+});
+
+it('can delete a corrupt stored particle whose payload lacks the portfolio', function () {
+    BeamParticle::create(['schema_ref' => StoredPortfolioData::class, 'payload' => ['scenarioKey' => 'broken'], 'meta' => ['owner' => ['type' => 'central', 'id' => 'host']]]);
+    expect(nextScope()->delete('broken'))->toBeTrue()->and(BeamParticle::query()->count())->toBe(0);
 });

@@ -3,6 +3,11 @@
 Synthesize mode for Beam hosts. The terms below are the ones this package owns. Curve, blueprint,
 portfolio, scenario, roster, materializer, extra and projection have code now.
 
+Stored portfolios have two identities: a server-managed central particle UUID and the person-chosen
+scenario key in payload, which remains the board/lens id. **PROVISIONAL pending d62cb04e:** writes require
+synthetic.portfolios.manage, while trusted registry reads retain viewer/CLI access. The dedicated model
+and stub are withdrawn; see docs/stored-portfolio-migration.md for existing published-table hosts.
+
 ## Language
 
 **Synthetic tenant**:

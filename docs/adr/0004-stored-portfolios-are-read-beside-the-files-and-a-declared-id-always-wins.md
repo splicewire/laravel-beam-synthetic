@@ -69,3 +69,13 @@ beam_particle UUID and preserve scenario_key in properties. Legacy historical sa
 remain in the lossless export/move receipt, never relabeled as the importing actor.
 Commerce-starter and market-starter published the retired stub; follow docs/stored-portfolio-migration.md.
 No host migration or live data is changed by this candidate.
+
+
+The one author amend adds explicit duplicate detection: reads report an ambiguous chosen key,
+saves refuse it by name, and a deliberate key deletion removes every matching particle, including
+corrupt payloads. Database-cache locks are pinned to the same central connection even while the
+ordinary cache is tenant-local; the cache store is cloned so other users retain their settings.
+Other cache drivers must be shared across all workers and tenant contexts. Central activity audit
+uses the same TenancyContext-selected connection as its particle transaction; when no split is
+declared both use the default. This deliberately supersedes the old model's separate central pin.
+Stored input schema fingerprints include nested portfolio/member shapes and require versioning on change.

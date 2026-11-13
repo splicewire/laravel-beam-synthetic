@@ -19,12 +19,13 @@ without inventing a second pricing or revenue path. Beam tier, MIT.
 - `Blueprints\`: `BlueprintRegistry` (`beam.synthetic.blueprints`) and `PortfolioRegistry`
   (`beam.synthetic.portfolios`), filled from `beam.synthetic.blueprint_paths` /
   `portfolio_paths` by a `DirectoryRegistrar`, and the Demo set under `resources/synthetic/demo/`.
-- `Store\`: `StoredPortfolios` (scoped) and the `'central'` `StoredPortfolio` model over
-  `beam_synthetic_portfolios` (the migration stub `database/migrations/create_beam_synthetic_portfolios_table.php.stub`,
-  published as `beam-synthetic-migrations` and registered into beam's install manifest). Portfolios saved at
-  runtime (the exec board's scenario builder). `PortfolioRegistry::get()`/`all()` read declared portfolios, then
-  stored ones; a declared id always wins (saving one is refused; a shadowed row is never read). Rows are
-  re-validated on read; saves and deletes go to the central activity trail (`synthetic-portfolios`).
+- `Store\`: scoped `StoredPortfolios` translates the board's chosen scenario key to a server UUID
+  in the existing central particle store. `StoredPortfolioData` declares `CentralParticleBacking`,
+  separate input Data and explicit `synthetic.portfolios.manage`; no generic CRUD is mounted.
+  Declared files refuse saves and shadow stored keys. Duplicate stored keys are reported, never
+  silently selected; explicit key deletion removes all matches. The old model/table stub and its
+  install publication are withdrawn. Follow `docs/stored-portfolio-migration.md` for existing hosts.
+  **PROVISIONAL pending root d62cb04e:** ability-checked mutations; trusted internal viewer/CLI reads.
 - `Roster\`: `SyntheticRoster` (who a run is about: one blueprint as one tenant, or a portfolio as
   `{blueprint}-{k}` copies at their offsets; history months back from now, forward months from an
   anchor, deliberately two methods) and the pure `ScenarioProjector`.
@@ -87,6 +88,14 @@ SecondParty blueprints.
   itself, which bills every subscription in the host.
 - **Storage belongs to the host's pipeline.** The materializer provisions a tenant's storage only
   where the host declares no provisioning pipeline (`beam.synthetic.provision_storage`).
+
+- **Stored schemas are frozen.** StoredPortfolioInputData nests ScenarioPortfolioData and PortfolioMemberData.
+  A shape change requires an explicit schemaRef version and schema migration; do not mutate a deployed fingerprint.
+  The default SchemaRegistry persists artifacts under storage/app/schemas/registry (or data-schemas.registry_directory).
+- **Central mutations serialize by key.** Use a shared lock-capable cache across workers AND tenant contexts.
+  Database-cache portfolio locks are pinned centrally without changing the host's other cache users.
+  Particles and their activity audit use the same TenancyContext connection/transaction (the default when
+  no central split is declared), rather than a separate audit connection.
 
 ## Vendored family-package conventions
 
