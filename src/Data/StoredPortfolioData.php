@@ -4,6 +4,7 @@ namespace Splicewire\Beam\Synthetic\Data;
 
 use Schemastud\DataSchemas\Attributes\Title;
 use Spatie\LaravelData\Data;
+use Spatie\TypeScriptTransformer\Attributes\TypeScript;
 use Splicewire\Beam\Particle\Attributes\ParticleResource;
 use Splicewire\Beam\Particle\Backing\CentralParticleBacking;
 use Splicewire\Beam\Particle\Backing\SharedParticleAccess;
@@ -25,6 +26,7 @@ use Splicewire\Beam\Particle\Backing\SharedParticleAccess;
     deletable: false,
 )]
 #[Title('Stored portfolio')]
+#[TypeScript]
 class StoredPortfolioData extends Data
 {
     public const WRITE_ABILITY = 'synthetic.portfolios.manage';
