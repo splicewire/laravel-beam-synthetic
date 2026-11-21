@@ -189,6 +189,14 @@
         {
             "type": "git",
             "url": "https://github.com/splicewire/laravel-beam-workflows.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/php-graphine.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/schemastud/laravel-json-reference.git"
         }
     ],
     "minimum-stability": "dev",
