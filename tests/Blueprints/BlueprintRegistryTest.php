@@ -11,12 +11,35 @@ use Splicewire\Beam\Synthetic\Data\SyntheticTenantBlueprintData;
 use Splicewire\Beam\Synthetic\Enums\SyntheticScenario;
 use Symfony\Component\Yaml\Yaml;
 
+/**
+ * A fresh scratch directory, remembered so afterEach removes it. Under `--parallel` every worker shares the temp
+ * directory, so a cleanup that globbed a prefix there also removed other workers' live directories, such as
+ * SyntheticHost's migration stubs (ticket 96).
+ */
 function scratchDir(): string
 {
-    $dir = sys_get_temp_dir().'/beam-synthetic-'.bin2hex(random_bytes(6));
+    $dir = sys_get_temp_dir().'/beam-synthetic-blueprints-'.bin2hex(random_bytes(6));
     mkdir($dir);
+    scratchDirsMade($dir);
 
     return $dir;
+}
+
+/** @return list<string> the directories scratchDir() made since the last drain; draining forgets them. */
+function scratchDirsMade(?string $made = null, bool $drain = false): array
+{
+    static $dirs = [];
+
+    if ($made !== null) {
+        $dirs[] = $made;
+    }
+
+    $made = $dirs;
+    if ($drain) {
+        $dirs = [];
+    }
+
+    return $made;
 }
 
 function blueprintYaml(string $id, string $scenario = 'steady-ramp'): string
@@ -37,7 +60,7 @@ function blueprintYaml(string $id, string $scenario = 'steady-ramp'): string
 }
 
 afterEach(function () {
-    foreach (glob(sys_get_temp_dir().'/beam-synthetic-*') ?: [] as $dir) {
+    foreach (scratchDirsMade(drain: true) as $dir) {
         array_map('unlink', glob($dir.'/*') ?: []);
         @rmdir($dir);
     }
