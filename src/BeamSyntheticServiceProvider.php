@@ -7,6 +7,7 @@ use Rushing\Popcorn\Contracts\ChainsTraitMethods as ChainsTraitMethodsContract;
 use Rushing\Popcorn\Registries\ScopesRegistrant;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Splicewire\Beam\Synthetic\Concerns\DeclaresConfigSection;
 use Splicewire\Beam\Synthetic\Concerns\WiresBlueprints;
 use Splicewire\Beam\Synthetic\Concerns\WiresMaterializer;
 use Splicewire\Beam\Synthetic\Console\CaptureCurvesCommand;
@@ -24,6 +25,7 @@ use Splicewire\Beam\Synthetic\Console\ProjectCommand;
 class BeamSyntheticServiceProvider extends PackageServiceProvider implements ChainsTraitMethodsContract
 {
     use ChainsTraitMethods;
+    use DeclaresConfigSection;
     use ScopesRegistrant;
     use WiresBlueprints;
     use WiresMaterializer;
