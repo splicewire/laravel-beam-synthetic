@@ -25,8 +25,8 @@ it('covers a host-supplied materializer map', function () {
         'materializers' => ['demo' => 'App\\Synthetic\\DemoMaterializer'],
     ]);
 
-    expect(ConfigSectionCoverage::uncovered(BeamSyntheticSection::class, $values))->toBe([])
-        ->and(app(AcceptanceGate::class)->accepts($values, app(ConfigSectionSchema::class)->for(BeamSyntheticSection::class)))->toBeTrue();
+    expect(ConfigSectionCoverage::uncovered(BeamSyntheticSection::class, $values))->toBe([]);
+    expect(app(AcceptanceGate::class)->accepts($values, app(ConfigSectionSchema::class)->for(BeamSyntheticSection::class)))->toBeTrue();
 });
 
 it('validates the package default config against the section schema (the host-audit check)', function () {
@@ -35,7 +35,7 @@ it('validates the package default config against the section schema (the host-au
     // key is optional because the section supplies an empty-map default.
     $schema = app(ConfigSectionSchema::class)->for(BeamSyntheticSection::class);
 
-    expect(app(AcceptanceGate::class)->accepts(config('beam.synthetic'), $schema))->toBeTrue();
+    $this->assertTrue(app(AcceptanceGate::class)->accepts(config('beam.synthetic'), $schema), json_encode($schema, JSON_THROW_ON_ERROR));
 });
 
 it('defaults the materializer section map without shipping a placeholder', function () {
@@ -44,5 +44,13 @@ it('defaults the materializer section map without shipping a placeholder', funct
 
     expect($defaults)->not->toHaveKey('materializers')
         ->and($parameter->getDefaultValue())->toBe([])
-        ->and($parameter->allowsNull())->toBeFalse();
+        ->and($parameter->allowsNull())->toBeTrue();
+});
+
+it('accepts a legacy published null map without uncovered keys', function () {
+    $values = array_merge(config('beam.synthetic'), ['materializers' => null]);
+    $schema = app(ConfigSectionSchema::class)->for(BeamSyntheticSection::class);
+
+    $this->assertTrue(app(AcceptanceGate::class)->accepts($values, $schema), json_encode($schema, JSON_THROW_ON_ERROR));
+    expect(ConfigSectionCoverage::uncovered(BeamSyntheticSection::class, $values))->toBe([]);
 });
