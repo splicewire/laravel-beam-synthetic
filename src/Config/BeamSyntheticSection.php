@@ -31,7 +31,7 @@ class BeamSyntheticSection extends ConfigSection
         public int $usage_units_per_usd,
         #[Title('Provision tenant storage'), Description('Whether synthetic tenant storage (database creation and a scoped migration) is provisioned automatically. Applies only where the host declares no provisioning pipeline of its own.'), ConfigKey]
         public bool $provision_storage,
-        #[Title('Materializers'), Description('Extra materialization steps the host registers, as name => class, run in the given order after the built-in steps when realising synthetic data. Null — the default — means none; placed last as the one optional key.'), ConfigKey, MapValues('string')]
-        public ?array $materializers = null,
+        #[Title('Materializers'), Description('Extra materialization steps the host registers, as name => class, run in the given order after the built-in steps when realising synthetic data. An empty map — the default — means none. This package omits the key; a host adds its map to register extra steps.'), ConfigKey, MapValues('string')]
+        public array $materializers = [],
     ) {}
 }

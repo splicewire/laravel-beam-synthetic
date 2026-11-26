@@ -34,8 +34,7 @@ return [
 
     // The host's own materialization steps, `name => class` (each a MaterializesSyntheticExtras), read into
     // SyntheticExtrasRegistry (`beam.synthetic.materializers`). They run in this order, after the generic writes.
-    // Null means none; WiresMaterializer reads (array) config('beam.synthetic.materializers', []), so null becomes [].
-    'materializers' => null,
+    // A host adds a name => class map here; an omitted key means no extra steps.
 
     // How many metered units a dollar of synthetic usage stands for, when the host declares no unit cost for the
     // meter (MeterRegistry). The default is the flagship's ratio for `openai.tokens`.

@@ -25,14 +25,24 @@ it('covers a host-supplied materializer map', function () {
         'materializers' => ['demo' => 'App\\Synthetic\\DemoMaterializer'],
     ]);
 
-    expect(ConfigSectionCoverage::uncovered(BeamSyntheticSection::class, $values))->toBe([]);
+    expect(ConfigSectionCoverage::uncovered(BeamSyntheticSection::class, $values))->toBe([])
+        ->and(app(AcceptanceGate::class)->accepts($values, app(ConfigSectionSchema::class)->for(BeamSyntheticSection::class)))->toBeTrue();
 });
 
 it('validates the package default config against the section schema (the host-audit check)', function () {
     // The same check ConfigSectionCoverageAudit runs at boot: the package's own default config
-    // must satisfy the generated section schema (AcceptanceGate -> opis). `materializers` ships as
-    // null, which the nullable schema accepts; an empty-array host map would have failed type:object.
+    // must satisfy the generated section schema (AcceptanceGate -> opis). The omitted `materializers`
+    // key is optional because the section supplies an empty-map default.
     $schema = app(ConfigSectionSchema::class)->for(BeamSyntheticSection::class);
 
     expect(app(AcceptanceGate::class)->accepts(config('beam.synthetic'), $schema))->toBeTrue();
+});
+
+it('defaults the materializer section map without shipping a placeholder', function () {
+    $defaults = require __DIR__.'/../../config/beam/synthetic.php';
+    $parameter = new ReflectionParameter([BeamSyntheticSection::class, '__construct'], 'materializers');
+
+    expect($defaults)->not->toHaveKey('materializers')
+        ->and($parameter->getDefaultValue())->toBe([])
+        ->and($parameter->allowsNull())->toBeFalse();
 });
